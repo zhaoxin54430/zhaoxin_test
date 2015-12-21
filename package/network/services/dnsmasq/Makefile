@@ -11,12 +11,12 @@ PKG_NAME:=dnsmasq
 PKG_VERSION:=2.73
 PKG_RELEASE:=1
 
-PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
-PKG_SOURCE_URL:=http://thekelleys.org.uk/dnsmasq
-PKG_MD5SUM:=b8bfe96d22945c8cf4466826ba9b21bd
+#PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
+#PKG_SOURCE_URL:=http://thekelleys.org.uk/dnsmasq
+#PKG_MD5SUM:=b8bfe96d22945c8cf4466826ba9b21bd
 
-PKG_LICENSE:=GPL-2.0
-PKG_LICENSE_FILES:=COPYING
+#PKG_LICENSE:=GPL-2.0
+#PKG_LICENSE_FILES:=COPYING
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(BUILD_VARIANT)/$(PKG_NAME)-$(PKG_VERSION)
 
@@ -125,6 +125,11 @@ MAKE_FLAGS := \
 	LDFLAGS="$(TARGET_LDFLAGS)" \
 	COPTS="$(COPTS)" \
 	PREFIX="/usr"
+
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+	$(CP) -rf ./src/* $(PKG_BUILD_DIR)/
+endef
 
 define Package/dnsmasq/install
 	$(INSTALL_DIR) $(1)/usr/sbin
