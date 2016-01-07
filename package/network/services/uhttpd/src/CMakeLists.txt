@@ -34,7 +34,7 @@ ENDIF()
 
 ADD_EXECUTABLE(uhttpd ${SOURCES})
 FIND_LIBRARY(libjson NAMES json-c json)
-TARGET_LINK_LIBRARIES(uhttpd ubox dl json_script blobmsg_json ${libjson} ${LIBS})
+TARGET_LINK_LIBRARIES(uhttpd ubox dl json_script blobmsg_json shmem ${libjson} ${LIBS})
 
 SET(PLUGINS "")
 IF(LUA_SUPPORT)
