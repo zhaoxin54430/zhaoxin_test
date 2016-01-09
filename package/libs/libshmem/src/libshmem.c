@@ -172,6 +172,10 @@ ShmRet shm_mem_detach(const void *shmp)
     //shmOwner=SHM_INVALID_PID;
     return SHMRET_SUCCESS;
 }
+/*
+ * only call once
+ * (only management process call)
+*/
 void shm_mem_cleanup(void)
 {
     if(shmctl( shmid, IPC_RMID, NULL )== -1)
