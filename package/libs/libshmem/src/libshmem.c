@@ -16,7 +16,7 @@
 #define LOCK_SEMAPHORE_KEY 0x5ed7
 #define SHARE_MEMORY_KEY 0x1ed7
 #define SHM_INVALID_PID   -1
-#define LOG_OUTPUT_TO_SYSLOG
+//#define LOG_OUTPUT_TO_SYSLOG
 
 /** Linux kernel semaphore identifier. */
 static int semid=-1;
