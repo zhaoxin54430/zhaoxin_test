@@ -1,28 +1,13 @@
-#all: clatdm
+CLATDM_LDFLAGS=$(LDFLAGS) -lshmem
+DIRS=.
+FILES=$(foreach dir, $(DIRS), $(wildcard $(dir)/*.c))
+OBJS=$(patsubst %.c, %.o, $(FILES))
 
-#clatdm: clatdm.c
-#	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
+clatdm:$(OBJS)	
+	$(CC) $(CLATDM_LDFLAGS) $(OBJS) -o $@
 
-#clean:
-#	rm -f clatdm *.o
-
-CC=gcc
-WFLAGS=-Wall
-CFLAGS=-O2
-INCLUDES=-Iinclude
-
-all: clatdm
-
-OBJS = clatdm.o
-
-%.o: %.c
-	$(CC) $(WFLAGS) -c -o $@ $(INCLUDES) $(CFLAGS) $<
-
-clatdm: $(OBJS)
-	$(CC) -o $@ $(OBJS)
-
-#clatdm: %.o
-#	$(CC) -o $@ $<
+$(OBJS):%.o:%.c
+	$(CC) -c $< -o $@
 
 clean:
-	rm -f clatdm  *.o
+	rm  -f *.o clatdm

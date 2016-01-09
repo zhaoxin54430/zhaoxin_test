@@ -34,8 +34,8 @@ define Build/Compile
 endef
 
 define Package/clatdm/install
-	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/clatdm $(1)/usr/sbin/
+	$(INSTALL_DIR) $(1)/bin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/clatdm $(1)/bin/
 endef
 
 $(eval $(call BuildPackage,clatdm))
