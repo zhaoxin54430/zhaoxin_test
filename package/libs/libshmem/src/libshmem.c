@@ -33,9 +33,10 @@ static int shmid=-1;
 #endif
 
 
-ShmRet Lock_init(void)
+ShmRet Lock_init(char attachExisting)
 {
-   if ((semid = semget((key_t)LOCK_SEMAPHORE_KEY, 1, IPC_CREAT|0666)) == -1)
+   int semflg= (attachExisting) ? 0 : IPC_CREAT; 
+   if ((semid = semget((key_t)LOCK_SEMAPHORE_KEY, 1, semflg|0666)) == -1)
    {
       shmLog_error("semget failed, errno=%d", errno);
       return SHMRET_SEM_GET_ERROR;
@@ -133,9 +134,10 @@ ShmRet sem_unlock(void)
 } 
 
 
-ShmRet shm_mem_init(void)
+ShmRet shm_mem_init(char attachExisting)
 {
-    shmid = shmget((key_t)SHARE_MEMORY_KEY, (size_t)SHMEM_SIZE, 0666|IPC_CREAT);
+    int shmflg=(attachExisting) ? 0 : IPC_CREAT;
+    shmid = shmget((key_t)SHARE_MEMORY_KEY, (size_t)SHMEM_SIZE, 0666|shmflg );
     if(shmid == -1)
     {
         shmLog_error("shmget failed, errno=%d", errno);
