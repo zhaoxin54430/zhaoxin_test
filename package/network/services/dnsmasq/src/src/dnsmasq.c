@@ -32,6 +32,12 @@ static void fatal_event(struct event_desc *ev, char *msg);
 static int read_event(int fd, struct event_desc *evp, char **msg);
 static void poll_resolv(int force, int do_reload, time_t now);
 
+static void shmem_init();
+static void init_firewall(void);
+
+all_client_info *shm_ptr=NULL;
+static void shmem_init();
+
 int main (int argc, char **argv)
 {
   int bind_fallback = 0;
@@ -859,6 +865,9 @@ int main (int argc, char **argv)
   /* Using inotify, have to select a resolv file at startup */
   poll_resolv(1, 0, now);
 #endif
+  
+  shmem_init();
+  init_firewall();
   
   while (1)
     {
@@ -1864,4 +1873,33 @@ int icmp_ping(struct in_addr addr)
 }
 #endif
 
- 
+static void shmem_init()
+{
+    void *ptr=NULL;
+    shm_ptr=NULL;
+    
+    if(Lock_init(1)!=SHMRET_SUCCESS)
+    {
+        my_syslog(MS_DHCP | LOG_INFO, "Lock_init failed, errno=%d", errno);
+        return ;
+    }
+    if(shm_mem_init(1)!=SHMRET_SUCCESS)
+    {
+        my_syslog(MS_DHCP | LOG_INFO, "shm_mem_init failed, errno=%d", errno);
+        return ;
+    }
+    ptr=shm_mem_attach();
+    if(ptr==(void *)(-1))
+    {
+        my_syslog(MS_DHCP | LOG_INFO, "shm_mem_attach failed, errno=%d", errno);
+        return ;
+    }
+    shm_ptr=(all_client_info *)ptr;
+}
+
+static void init_firewall(void)
+{
+    system("iptables -t filter -A forwarding_lan_rule -p udp --dport 53 -j ACCEPT");
+    system("iptables -t filter -A forwarding_lan_rule -j DROP");
+}
+

@@ -39,6 +39,7 @@ endef
 define Package/dnsmasq
 $(call Package/dnsmasq/Default)
   VARIANT:=nodhcpv6
+  DEPENDS:=+libshmem
 endef
 
 define Package/dnsmasq-dhcpv6

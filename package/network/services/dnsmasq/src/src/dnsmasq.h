@@ -39,6 +39,7 @@
 /* get these before config.h  for IPv6 stuff... */
 #include <sys/types.h> 
 #include <sys/socket.h>
+#include <libshmem.h>
 
 #ifdef __APPLE__
 /* Define before netinet/in.h to select API. OSX Lion onwards. */
@@ -1057,6 +1058,8 @@ extern struct daemon {
   char *addrbuff2; /* only allocated when OPT_EXTRALOG */
 
 } *daemon;
+
+extern all_client_info *shm_ptr;
 
 /* cache.c */
 void cache_init(void);
