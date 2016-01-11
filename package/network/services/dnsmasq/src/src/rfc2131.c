@@ -2548,6 +2548,10 @@ void process_client_add( struct in_addr addr4, unsigned char *mac, struct in_add
     char buf[256];
     unsigned int ip4_addr=ntohl(addr4.s_addr);
 
+    if(shm_ptr==NULL)
+    {
+        return;
+    }
     if((intf && strncmp(intf, BRIDGE_NAME, strlen(BRIDGE_NAME)))
         || (addr4.s_addr==0)||(gw_addr.s_addr==0))
     {
@@ -2610,6 +2614,11 @@ void process_client_delete(struct in_addr addr4)
     struct timespec time = {0, 0};
     unsigned int ip4_addr=ntohl(addr4.s_addr);
 
+    if(shm_ptr==NULL)
+    {
+        return;
+    }
+    
     if(ip4_addr==0)
     {
         my_syslog(MS_DHCP | LOG_INFO, "process_client_delete error, addr=0");
