@@ -2,6 +2,7 @@
 #include <time.h>
 
 #define SHMEM_SIZE 4096
+#define MAX_CLIENTS_NUMBER 64
 #define BRIDGE_NAME "br-lan"
 #define ADD_REDIRECT_RULE_FORMAT  "iptables -t nat -A zone_lan_prerouting -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
 #define DELETE_REDIRECT_RULE_FORMAT  "iptables -t nat -D zone_lan_prerouting -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
@@ -27,7 +28,7 @@ typedef enum
     HTTP_SEND_REDIRECT , /*uhttpd had sended redirect paage to client*/
     AUTH_SUCCESSFUL , /*client had auth successful*/
 }client_status;
-
+/*if modify the client_info,need modify the MAX_CLIENTS_NUMBER, it make sure MAX_CLIENTS_NUMBER * sizeof(client_info) < SHMEM_SIZE -1 */
 typedef struct clientInfo{
     char mac_addr[6];
     uint32_t ip4_addr;
@@ -38,7 +39,7 @@ typedef struct clientInfo{
 
 typedef struct allClientInfo{
     char client_num;
-    client_info *client;
+    client_info client[MAX_CLIENTS_NUMBER];
 }all_client_info;
 
 ShmRet Lock_init(char attachExisting);
