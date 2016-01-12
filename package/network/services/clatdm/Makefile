@@ -36,6 +36,8 @@ endef
 define Package/clatdm/install
 	$(INSTALL_DIR) $(1)/bin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/clatdm $(1)/bin/
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/clatdm.sh $(1)/etc/init.d/clatdm
 endef
 
 $(eval $(call BuildPackage,clatdm))
