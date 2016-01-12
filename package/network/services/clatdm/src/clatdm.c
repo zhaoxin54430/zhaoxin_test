@@ -36,27 +36,52 @@ int main(int argc, char **argv)
 {  
     void *ptr=NULL;
     client_info client;
+    char attachExisting=false;
+    FILE *flag_file=NULL;
+
+    if(access(SHARE_MEM_FLAG, F_OK)==0)
+        attachExisting=true;
 
     signal(SIGPIPE, SIG_IGN);
     openlog("clatdm", LOG_NDELAY , LOG_USER);
 
     shm_ptr=NULL;
-    if(Lock_init(false)!=SHMRET_SUCCESS)
+    if(Lock_init(attachExisting)!=SHMRET_SUCCESS)
     {
         clatdm_error("Lock_init failed, errno=%d", errno);
         closelog();
         exit(1);
     }
     /*only management process init sem*/
-    if(init_sem()!=SHMRET_SUCCESS)
+    if(attachExisting==false)
     {
-        clatdm_error("init_sem failed, errno=%d", errno);
-        goto quit_lock;
+        if(init_sem()!=SHMRET_SUCCESS)
+        {
+            clatdm_error("init_sem failed, errno=%d", errno);
+            goto quit_lock;
+        }
     }
-    if(shm_mem_init(false)!=SHMRET_SUCCESS)
+    if(shm_mem_init(attachExisting)!=SHMRET_SUCCESS)
     {
         clatdm_error("shm_mem_init failed, errno=%d", errno);
         goto quit_lock;
+    }
+    else
+    {
+        if(attachExisting==false)
+        {
+            flag_file=fopen(SHARE_MEM_FLAG,"w+");
+            if(flag_file==NULL)
+            {
+                Lock_cleanup();
+                closelog();
+                exit(1);
+            }
+            else
+            {
+                fclose(flag_file);
+            }
+        }
     }
     ptr=shm_mem_attach();
     if(ptr==(void *)(-1))
@@ -92,19 +117,19 @@ int main(int argc, char **argv)
     }
     shm_mem_detach(ptr);
     shm_ptr=NULL;
-    shm_mem_cleanup();
-    Lock_cleanup();
+    //shm_mem_cleanup();
+    //Lock_cleanup();
     closelog();
     exit(0);
 
 quit_lock:
-    Lock_cleanup();
+    //Lock_cleanup();
     closelog();
     exit(1);
     
 quit_mem:
-    shm_mem_cleanup();
-    Lock_cleanup();
+    //shm_mem_cleanup();
+    //Lock_cleanup();
     closelog();
     exit(1);    
 } 

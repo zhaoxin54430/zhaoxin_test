@@ -1,6 +1,7 @@
 #include <syslog.h>
 
 #define CLATDM_OUTPUT_TO_SYSLOG
+#define SHARE_MEM_FLAG "/tmp/sharemem_flag"
 
 #ifdef CLATDM_OUTPUT_TO_SYSLOG
 #define clatdm_error(args...) syslog(LOG_ERR, args);
