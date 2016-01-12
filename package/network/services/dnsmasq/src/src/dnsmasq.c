@@ -36,6 +36,7 @@ static void shmem_init();
 static void init_firewall(void);
 
 all_client_info *shm_ptr=NULL;
+char output_dnsmasq_shmem_log=0;
 static void shmem_init();
 
 int main (int argc, char **argv)
@@ -1897,6 +1898,9 @@ static void shmem_init()
         return ;
     }
     shm_ptr=(all_client_info *)ptr;
+
+    if(access("/etc/output_dnsmasq_shmem_log", F_OK)==0)
+        output_dnsmasq_shmem_log=1;
 }
 
 static void init_firewall(void)

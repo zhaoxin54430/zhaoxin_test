@@ -64,8 +64,8 @@ static int prune_vendor_opts(struct dhcp_netid *netid);
 static struct dhcp_opt *pxe_opts(int pxe_arch, struct dhcp_netid *netid, struct in_addr local, time_t now);
 struct dhcp_boot *find_boot(struct dhcp_netid *netid);
 
-void process_client_add( struct in_addr addr4, unsigned char *mac, struct in_addr gw_addr, char *intf);
-void process_client_delete(struct in_addr addr4);
+void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf);
+void process_client_delete(void *addr);
   
 size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe, struct in_addr fallback)
@@ -566,7 +566,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		     {
 		       /* lease exists, wrong network. */
 		       lease_prune(lease, now);
-		       process_client_delete(lease->addr);
+		       process_client_delete(&lease->addr);
 		       lease = NULL;
 		     }
 		   if (!address_allocate(context, &mess->yiaddr, mess->chaddr, mess->hlen, tagif_netid, now))
@@ -938,7 +938,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       if (lease && lease->addr.s_addr == option_addr(opt).s_addr)
         {
 	lease_prune(lease, now);
-	process_client_delete(lease->addr);
+	process_client_delete(&lease->addr);
         }
       if (have_config(config, CONFIG_ADDR) && 
 	  config->addr.s_addr == option_addr(opt).s_addr)
@@ -965,7 +965,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       if (lease && lease->addr.s_addr == mess->ciaddr.s_addr)
         {
 	lease_prune(lease, now);
-	process_client_delete(lease->addr);
+	process_client_delete(&lease->addr);
 	    }
       else
 	message = _("unknown lease");
@@ -1122,7 +1122,7 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      if (lease && lease->addr.s_addr != mess->yiaddr.s_addr)
 		{
 		  lease_prune(lease, now);
-		  process_client_delete(lease->addr);
+		  process_client_delete(&lease->addr);
 		  lease = NULL;
 		}
 	    }
@@ -1372,8 +1372,8 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	  else
 	    override = lease->override;
 
-	  log_packet("DHCPACK", &mess->yiaddr, emac, emac_len, iface_name, hostname, NULL, mess->xid);
-	  process_client_add(mess->yiaddr, emac, mess->giaddr, iface_name);  
+	  log_packet("DHCPACK", &mess->yiaddr, emac, emac_len, iface_name, hostname, " request ack", mess->xid);
+	  process_client_add(&mess->yiaddr, emac, &context->router, iface_name);  
 	  
 	  clear_packet(mess, end);
 	  option_put(mess, end, OPTION_MESSAGE_TYPE, 1, DHCPACK);
@@ -1415,8 +1415,8 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 
       log_tags(tagif_netid, ntohl(mess->xid));
       
-      log_packet("DHCPACK", &mess->ciaddr, emac, emac_len, iface_name, hostname, NULL, mess->xid);
-      process_client_add(mess->ciaddr, emac, mess->giaddr, iface_name);
+      log_packet("DHCPACK", &mess->ciaddr, emac, emac_len, iface_name, hostname, " inform ack", mess->xid);
+      process_client_add(&mess->ciaddr, emac, &context->router, iface_name);
       
       if (lease)
 	{
@@ -2541,29 +2541,48 @@ static void do_options(struct dhcp_context *context,
 
 #define TRUE 1
 #define FALSE 0
-void process_client_add( struct in_addr addr4, unsigned char *mac, struct in_addr gw_addr, char *intf)
+void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
 {
     int i=0;
     char found=FALSE, add_rule=FALSE, delete_prev_rule=FALSE;
-    char buf[256];
-    unsigned int ip4_addr=ntohl(addr4.s_addr);
+    char buf[256], mac_buf[64], ip_buf1[32];
+    struct in_addr gw_addr, ip_addr;
+    unsigned int addr_int;
 
+    ip_addr.s_addr=0;
+    gw_addr.s_addr=0;
+
+    if(addr)
+        memcpy(&ip_addr, addr, sizeof(ip_addr));
+
+    if(gw)
+        memcpy(&gw_addr, gw, sizeof(gw_addr));
+
+    addr_int=ntohl(ip_addr.s_addr);
+   
     if(shm_ptr==NULL)
     {
         return;
     }
+    strcpy(ip_buf1, inet_ntoa(ip_addr));
     if((intf && strncmp(intf, BRIDGE_NAME, strlen(BRIDGE_NAME)))
-        || (addr4.s_addr==0)||(gw_addr.s_addr==0))
+        || (ip_addr.s_addr==0)||(gw_addr.s_addr==0))
     {
         my_syslog(MS_DHCP | LOG_INFO, "process_client_add error, interface=%s, ip=%s, gw=%s", 
-            intf, inet_ntoa(addr4), inet_ntoa(gw_addr));
+            intf, ip_buf1, inet_ntoa(gw_addr));
         return;
     }
+    if(output_dnsmasq_shmem_log)
+    {
+        print_mac(mac_buf, mac, 6);
+        my_syslog(MS_DHCP | LOG_INFO, "process_client_add, interface=%s, ip=%s, gw=%s, mac=%s, cur_client_num:%d", 
+                intf, ip_buf1, inet_ntoa(gw_addr), mac_buf, shm_ptr->client_num);
+     }
 
     sem_lock();
     for(i=0; i<shm_ptr->client_num; i++)
     {
-        if(shm_ptr->client[i].ip4_addr==ip4_addr)
+        if(shm_ptr->client[i].ip4_addr==addr_int)
         {
             /*we think that this is a new client*/
             if(memcmp(shm_ptr->client[i].mac_addr, mac, 6)!=0)
@@ -2584,52 +2603,72 @@ void process_client_add( struct in_addr addr4, unsigned char *mac, struct in_add
     /*not found append to tail*/
     if(found==FALSE)
     {
-        shm_ptr->client[shm_ptr->client_num].ip4_addr=ip4_addr;
+        if(shm_ptr->client_num >= MAX_CLIENTS_NUMBER)
+        {
+            sem_unlock();
+            my_syslog(MS_DHCP | LOG_INFO, "process_client_add !!!!errro, client info buffer is full"); 
+            return;
+        }   
+        shm_ptr->client[shm_ptr->client_num].ip4_addr=addr_int;
         shm_ptr->client[shm_ptr->client_num].release_time=0;
         shm_ptr->client[shm_ptr->client_num].status=REDIRECT_RULE;
         shm_ptr->client[shm_ptr->client_num].time=0;
         memcpy(shm_ptr->client[shm_ptr->client_num].mac_addr, mac, 6);
         shm_ptr->client_num++;
-        add_rule=TRUE;
+        add_rule=TRUE;   
     }
     sem_unlock();
     
     if(delete_prev_rule==TRUE)
     {
-        sprintf(buf, DELETE_ALLOW_RULE_FORMAT, inet_ntoa(addr4));
+        sprintf(buf, DELETE_ALLOW_RULE_FORMAT, inet_ntoa(ip_addr));
         system(buf);
-        sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, inet_ntoa(addr4), inet_ntoa(gw_addr));
+        sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), inet_ntoa(gw_addr));
         system(buf);
     }
     if(add_rule==TRUE)
     {
-        sprintf(buf, ADD_REDIRECT_RULE_FORMAT, inet_ntoa(addr4), inet_ntoa(gw_addr));
+        if(output_dnsmasq_shmem_log)
+            my_syslog(MS_DHCP | LOG_INFO, "process_client_add add rule");
+            
+        sprintf(buf, ADD_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), inet_ntoa(gw_addr));
         system(buf);
     }
 }
-void process_client_delete(struct in_addr addr4)
+void process_client_delete(void *addr)
 {
     int i=0;
     char found=FALSE;
     struct timespec time = {0, 0};
-    unsigned int ip4_addr=ntohl(addr4.s_addr);
+    unsigned int addr_int;
+    struct in_addr ip_addr;
 
+    ip_addr.s_addr=0;
+    
+    if (addr)
+        memcpy(&ip_addr, addr, sizeof(ip_addr));
+
+    addr_int=ntohl(ip_addr.s_addr);
+    
     if(shm_ptr==NULL)
     {
         return;
     }
     
-    if(ip4_addr==0)
+    if(addr_int==0)
     {
         my_syslog(MS_DHCP | LOG_INFO, "process_client_delete error, addr=0");
         return;
     }
     clock_gettime(CLOCK_MONOTONIC, &time);
-    
+
+    if(output_dnsmasq_shmem_log)
+        my_syslog(MS_DHCP | LOG_INFO, "process_client_delete addr=%s", inet_ntoa(ip_addr));
+        
     sem_lock();
     for(i=0; i<shm_ptr->client_num; i++)
     {
-        if(shm_ptr->client[i].ip4_addr==ip4_addr)
+        if(shm_ptr->client[i].ip4_addr==addr_int)
         {
             shm_ptr->client[i].release_time=time.tv_sec;
             found=TRUE;
@@ -2639,7 +2678,7 @@ void process_client_delete(struct in_addr addr4)
     sem_unlock();
     
     if(found==FALSE)
-        my_syslog(MS_DHCP | LOG_INFO, "process_client_delete failed, addr=%x", ip4_addr);
+        my_syslog(MS_DHCP | LOG_INFO, "process_client_delete failed, addr=%s", inet_ntoa(ip_addr));
 }
 
 #undef TRUE

@@ -1060,6 +1060,7 @@ extern struct daemon {
 } *daemon;
 
 extern all_client_info *shm_ptr;
+extern char output_dnsmasq_shmem_log;
 
 /* cache.c */
 void cache_init(void);
