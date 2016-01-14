@@ -91,10 +91,13 @@ int main(int argc, char **argv)
     }
     shm_ptr=(all_client_info *)ptr;
     
-    sem_lock();
-    /*only management process init the number*/
-    shm_ptr->client_num=0;
-    sem_unlock();
+    if(attachExisting==false)
+    {
+        sem_lock();
+        /*only management process init the number*/
+        shm_ptr->client_num=0;
+        sem_unlock();
+    }
 
     char lastnum=0;
     bool isAdd=false;
