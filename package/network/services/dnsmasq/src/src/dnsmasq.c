@@ -868,9 +868,11 @@ int main (int argc, char **argv)
 #endif
   
   shmem_init();
-  
+
+#if 0 
   if(shm_ptr!=NULL)
     init_firewall();
+#endif    
   
   while (1)
     {
@@ -1902,7 +1904,7 @@ static void shmem_init()
     if(access("/etc/output_dnsmasq_shmem_log", F_OK)==0)
         output_dnsmasq_shmem_log=1;
 }
-
+#if 0
 static void init_firewall(void)
 {
     system("iptables -t filter -D forwarding_lan_rule -p udp --dport 53 -j ACCEPT");
@@ -1911,4 +1913,5 @@ static void init_firewall(void)
     system("iptables -t filter -A forwarding_lan_rule -p udp --dport 53 -j ACCEPT");
     system("iptables -t filter -A forwarding_lan_rule -j DROP");
 }
+#endif
 
