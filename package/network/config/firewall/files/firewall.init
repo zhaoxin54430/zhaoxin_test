@@ -38,7 +38,8 @@ service_triggers() {
 }
 
 restart() {
-	fw3 restart
+#	fw3 restart
+	date > /etc/f_restart_fw
 }
 
 start_service() {
