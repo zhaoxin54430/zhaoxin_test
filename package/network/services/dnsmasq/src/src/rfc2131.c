@@ -2623,7 +2623,7 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
     {
         sprintf(buf, DELETE_ALLOW_RULE_FORMAT, inet_ntoa(ip_addr));
         system(buf);
-        sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), inet_ntoa(gw_addr));
+        sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, ip_buf1, inet_ntoa(gw_addr));
         system(buf);
     }
     if(add_rule==TRUE)
@@ -2631,7 +2631,7 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
         if(output_dnsmasq_shmem_log)
             my_syslog(MS_DHCP | LOG_INFO, "process_client_add add rule");
             
-        sprintf(buf, ADD_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), inet_ntoa(gw_addr));
+        sprintf(buf, ADD_REDIRECT_RULE_FORMAT, ip_buf1, inet_ntoa(gw_addr));
         system(buf);
     }
 }
