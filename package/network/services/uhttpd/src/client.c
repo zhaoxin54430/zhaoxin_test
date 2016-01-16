@@ -19,6 +19,7 @@
 
 #include <libubox/blobmsg.h>
 #include <ctype.h>
+#include <arpa/inet.h>
 
 #include "uhttpd.h"
 #include "tls.h"
@@ -309,6 +310,7 @@ static void client_parse_header(struct client *cl, char *data)
 	char *err;
 	char *name;
 	char *val;
+	struct in_addr host_addr;
 
 	if (!*data) {
 		uloop_timeout_cancel(&cl->timeout);
@@ -326,7 +328,8 @@ static void client_parse_header(struct client *cl, char *data)
 	for (name = data; *name; name++)
 		if (isupper(*name))
 			*name = tolower(*name);
-
+    r->host_ip=0;
+    
 	if (!strcmp(data, "expect")) {
 		if (!strcasecmp(val, "100-continue"))
 			r->expect_cont = true;
@@ -343,6 +346,12 @@ static void client_parse_header(struct client *cl, char *data)
 	} else if (!strcmp(data, "transfer-encoding")) {
 		if (!strcmp(val, "chunked"))
 			r->transfer_chunked = true;
+	} else if (!strcmp(data, "host")) {
+		if (strchr(val, ':')==NULL)
+		{
+		    if(inet_aton(val, &host_addr)!=0)
+		        r->host_ip=ntohl(host_addr.s_addr);
+		}
 	} else if (!strcmp(data, "connection")) {
 		if (!strcasecmp(val, "close"))
 			r->connection_close = true;

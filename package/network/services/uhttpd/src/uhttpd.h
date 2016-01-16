@@ -36,10 +36,20 @@
 #ifdef HAVE_TLS
 #include <libubox/ustream-ssl.h>
 #endif
+#include <libshmem.h>
 
 #include "utils.h"
 
 #define UH_LIMIT_CLIENTS	64
+#define CON_AUTH_PATH "con_inet_auth.html"
+#define ENABLE_UHTTPD_SYSLOG
+
+#ifdef ENABLE_UHTTPD_SYSLOG
+#include <syslog.h>
+#define myhttp_error(args...) syslog(LOG_ERR, args);
+#else
+#define myhttp_error(args...) fprintf(stderr, args);
+#endif
 
 #define __enum_header(_name, _val) HDR_##_name,
 #define __blobmsg_header(_name, _val) [HDR_##_name] = { .name = #_val, .type = BLOBMSG_TYPE_STRING },
@@ -122,6 +132,7 @@ struct http_request {
 	bool connection_close;
 	bool disable_chunked;
 	uint8_t transfer_chunked;
+	uint32_t host_ip;
 	const struct auth_realm *realm;
 };
 
@@ -267,6 +278,7 @@ extern struct config conf;
 extern const char * const http_versions[];
 extern const char * const http_methods[];
 extern struct dispatch_handler cgi_dispatch;
+extern all_client_info *shm_ptr;
 
 void uh_index_add(const char *filename);
 

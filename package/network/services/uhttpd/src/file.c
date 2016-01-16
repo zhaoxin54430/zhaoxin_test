@@ -29,6 +29,7 @@
 #include <inttypes.h>
 
 #include <libubox/blobmsg.h>
+#include <arpa/inet.h>
 
 #include "uhttpd.h"
 #include "mimetypes.h"
@@ -856,6 +857,35 @@ static char *uh_handle_alias(char *old_url)
 	return old_url;
 }
 
+static void uh_set_auth_status(struct client *cl)
+{
+    int i=0;
+    struct timespec time = {0, 0};
+    unsigned int addr_int;
+
+    if((cl->peer_addr.family!=AF_INET)||(shm_ptr==NULL))
+    {
+        myhttp_error("uh_set_auth_status family!=AF_INET or shm_ptr=NULL\n");
+        return ;
+    }
+    addr_int=ntohl(cl->peer_addr.in.s_addr);
+    clock_gettime(CLOCK_MONOTONIC, &time);
+    
+    sem_lock();
+    for(i=0; i<shm_ptr->client_num; i++)
+    {
+        if(shm_ptr->client[i].ip4_addr==addr_int)
+        {
+            if((shm_ptr->client[i].status==REDIRECT_RULE))
+            {
+                shm_ptr->client[i].status=HTTP_SEND_AUTH;
+                shm_ptr->client[i].time=time.tv_sec;
+            }
+            break;
+        }
+    }
+    sem_unlock();
+}
 void uh_handle_request(struct client *cl)
 {
 	struct http_request *req = &cl->request;
@@ -868,6 +898,17 @@ void uh_handle_request(struct client *cl)
 	uh_handler_run(cl, &url, false);
 	if (!url)
 		return;
+
+    if(strstr(url, CON_AUTH_PATH))
+    {
+        uh_set_auth_status(cl);
+    }
+    else
+    {
+        myhttp_error("ip=%x  serip=%s  url=%s", req->host_ip, inet_ntoa(cl->srv_addr.in), url);
+        //send auth page
+        //return;
+    }
 
 	req->redirect_status = 200;
 	d = dispatch_find(url, NULL);

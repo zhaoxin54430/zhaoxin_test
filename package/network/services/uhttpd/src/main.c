@@ -34,7 +34,13 @@
 #include "uhttpd.h"
 #include "tls.h"
 
+#ifdef ENABLE_UHTTPD_SYSLOG
+#include <syslog.h>
+#endif
+
 char uh_buf[4096];
+
+all_client_info *shm_ptr=NULL;
 
 static int run_server(void)
 {
@@ -197,7 +203,37 @@ static void init_defaults_post(void)
 		conf.cgi_prefix_len = strlen(conf.cgi_prefix);
 	};
 }
-
+static void shmem_init()
+{
+    void *ptr=NULL;
+    shm_ptr=NULL;
+    
+#ifdef ENABLE_UHTTPD_SYSLOG
+    openlog("uhttpd", LOG_NDELAY , LOG_USER);
+#endif
+    if(Lock_init(1)!=SHMRET_SUCCESS)
+    {
+        myhttp_error("uhttpd Lock_init failed, errno=%d", errno);
+        return ;
+    }
+    if(shm_mem_init(1)!=SHMRET_SUCCESS)
+    {
+        myhttp_error("uhttpd shm_mem_init failed, errno=%d", errno);
+        return ;
+    }
+    ptr=shm_mem_attach();
+    if(ptr==(void *)(-1))
+    {
+        myhttp_error("uhttpd shm_mem_attach failed, errno=%d", errno);
+        return ;
+    }
+    shm_ptr=(all_client_info *)ptr;
+    
+#if 0
+    if(access("/etc/output_dnsmasq_shmem_log", F_OK)==0)
+        output_dnsmasq_shmem_log=1;
+#endif        
+}
 static void fixup_prefix(char *str)
 {
 	int len;
@@ -522,6 +558,8 @@ int main(int argc, char **argv)
 			exit(0);
 		}
 	}
-
+	
+    shmem_init();
+    
 	return run_server();
 }
