@@ -1,3 +1,6 @@
+#ifndef __LIBSHMEM_H
+#define __LIBSHMEM_H
+
 #include <stdint.h>
 #include <time.h>
 
@@ -25,7 +28,7 @@ typedef enum
 typedef enum
 {
     REDIRECT_RULE    = 1, /*client request ip successful, and had added redirect rule to firewall*/
-    HTTP_SEND_REDIRECT , /*uhttpd had sended redirect paage to client*/
+    HTTP_SEND_AUTH , /*uhttpd had sended auth paage to client*/
     AUTH_SUCCESSFUL , /*client had auth successful*/
 }client_status;
 /*if modify the client_info,need modify the MAX_CLIENTS_NUMBER, it make sure MAX_CLIENTS_NUMBER * sizeof(client_info) < SHMEM_SIZE -1 */
@@ -33,7 +36,7 @@ typedef struct clientInfo{
     char mac_addr[6];
     uint32_t ip4_addr;
     client_status status;
-    time_t time;/*the time for HTTP_SEND_REDIRECT or AUTH_SUCCESSFUL status*/
+    time_t time;/*the time for HTTP_SEND_AUTH or AUTH_SUCCESSFUL status*/
     time_t release_time;/*accept the client's release request time*/
 }client_info;
 
@@ -53,3 +56,5 @@ ShmRet shm_mem_init(char attachExisting);
 void *shm_mem_attach(void);
 ShmRet shm_mem_detach(const void *shmp);
 void shm_mem_cleanup(void);
+
+#endif
