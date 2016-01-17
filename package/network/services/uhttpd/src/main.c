@@ -34,7 +34,7 @@
 #include "uhttpd.h"
 #include "tls.h"
 
-#ifdef ENABLE_UHTTPD_SYSLOG
+#ifdef ENABLE_MYUHTTPD_SYSLOG
 #include <syslog.h>
 #endif
 
@@ -208,23 +208,23 @@ static void shmem_init()
     void *ptr=NULL;
     shm_ptr=NULL;
     
-#ifdef ENABLE_UHTTPD_SYSLOG
+#ifdef ENABLE_MYUHTTPD_SYSLOG
     openlog("uhttpd", LOG_NDELAY , LOG_USER);
 #endif
     if(Lock_init(1)!=SHMRET_SUCCESS)
     {
-        myhttp_error("uhttpd Lock_init failed, errno=%d", errno);
+        fprintf(stderr, "uhttpd Lock_init failed, errno=%d", errno);
         return ;
     }
     if(shm_mem_init(1)!=SHMRET_SUCCESS)
     {
-        myhttp_error("uhttpd shm_mem_init failed, errno=%d", errno);
+        fprintf(stderr, "uhttpd shm_mem_init failed, errno=%d", errno);
         return ;
     }
     ptr=shm_mem_attach();
     if(ptr==(void *)(-1))
     {
-        myhttp_error("uhttpd shm_mem_attach failed, errno=%d", errno);
+        fprintf(stderr, "uhttpd shm_mem_attach failed, errno=%d", errno);
         return ;
     }
     shm_ptr=(all_client_info *)ptr;

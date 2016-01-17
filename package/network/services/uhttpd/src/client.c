@@ -185,6 +185,7 @@ static int client_parse_request(struct client *cl, char *data)
 
 	req->method = h_method;
 	req->version = h_version;
+	req->host_ip=0;
 	if (req->version < UH_HTTP_VER_1_1 || req->method == UH_HTTP_MSG_POST ||
 	    !conf.http_keepalive)
 		req->connection_close = true;
@@ -328,7 +329,6 @@ static void client_parse_header(struct client *cl, char *data)
 	for (name = data; *name; name++)
 		if (isupper(*name))
 			*name = tolower(*name);
-    r->host_ip=0;
     
 	if (!strcmp(data, "expect")) {
 		if (!strcasecmp(val, "100-continue"))
@@ -346,7 +346,7 @@ static void client_parse_header(struct client *cl, char *data)
 	} else if (!strcmp(data, "transfer-encoding")) {
 		if (!strcmp(val, "chunked"))
 			r->transfer_chunked = true;
-	} else if (!strcmp(data, "host")) {
+	} else if (!strcmp(data, "host")) {	    
 		if (strchr(val, ':')==NULL)
 		{
 		    if(inet_aton(val, &host_addr)!=0)

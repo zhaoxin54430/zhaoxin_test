@@ -857,16 +857,28 @@ static char *uh_handle_alias(char *old_url)
 	return old_url;
 }
 
-static void uh_set_auth_status(struct client *cl)
+static void uh_output_redirect(struct client *cl)
+{
+	char *redirect_str="<html><head><title></title><script>(function(){window.location.href= \"http://192.168.1.1/con/con_inet_auth.html\";})();</script></head><body></body></html>";
+	cl->request.disable_chunked = true;
+	cl->request.connection_close = true;
+	uh_http_header(cl, 200, "OK");
+	ustream_printf(cl->us, "Content-Length: %d\r\n", strlen(redirect_str));
+	ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
+	ustream_printf(cl->us, redirect_str);
+	uh_request_done(cl);
+}
+
+static bool uh_set_auth_status(struct client *cl)
 {
     int i=0;
     struct timespec time = {0, 0};
     unsigned int addr_int;
+    bool isChange=false;
 
     if((cl->peer_addr.family!=AF_INET)||(shm_ptr==NULL))
     {
-        myhttp_error("uh_set_auth_status family!=AF_INET or shm_ptr=NULL\n");
-        return ;
+        return false;
     }
     addr_int=ntohl(cl->peer_addr.in.s_addr);
     clock_gettime(CLOCK_MONOTONIC, &time);
@@ -880,11 +892,13 @@ static void uh_set_auth_status(struct client *cl)
             {
                 shm_ptr->client[i].status=HTTP_SEND_AUTH;
                 shm_ptr->client[i].time=time.tv_sec;
+                isChange=true;
             }
             break;
         }
     }
     sem_unlock();
+    return isChange;
 }
 void uh_handle_request(struct client *cl)
 {
@@ -892,6 +906,8 @@ void uh_handle_request(struct client *cl)
 	struct dispatch_handler *d;
 	char *url = blobmsg_data(blob_data(cl->hdr.head));
 	char *error_handler;
+	char buf[256];
+  char ip_buf[32];
 
 	url = uh_handle_alias(url);
 
@@ -899,18 +915,25 @@ void uh_handle_request(struct client *cl)
 	if (!url)
 		return;
 
+	req->redirect_status = 200;
+	
     if(strstr(url, CON_AUTH_PATH))
     {
-        uh_set_auth_status(cl);
+        if(uh_set_auth_status(cl))
+        {
+            strcpy(ip_buf, inet_ntoa(cl->peer_addr.in));
+            sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, ip_buf, inet_ntoa(cl->srv_addr.in));      
+            system(buf);
+            sprintf(buf, ADD_ALLOW_RULE_FORMAT, ip_buf);
+            system(buf);
+        }
     }
-    else
+    else if(ntohl(cl->srv_addr.in.s_addr)!= req->host_ip )
     {
-        myhttp_error("ip=%x  serip=%s  url=%s", req->host_ip, inet_ntoa(cl->srv_addr.in), url);
-        //send auth page
-        //return;
+        uh_output_redirect(cl);
+        return;
     }
-
-	req->redirect_status = 200;
+    
 	d = dispatch_find(url, NULL);
 	if (d)
 		return uh_invoke_handler(cl, d, url, NULL);

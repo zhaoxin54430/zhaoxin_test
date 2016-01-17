@@ -42,13 +42,14 @@
 
 #define UH_LIMIT_CLIENTS	64
 #define CON_AUTH_PATH "con_inet_auth.html"
-#define ENABLE_UHTTPD_SYSLOG
-
-#ifdef ENABLE_UHTTPD_SYSLOG
+//#define ENABLE_MYUHTTPD_SYSLOG
+#if 0
+#ifdef ENABLE_MYUHTTPD_SYSLOG
 #include <syslog.h>
 #define myhttp_error(args...) syslog(LOG_ERR, args);
 #else
 #define myhttp_error(args...) fprintf(stderr, args);
+#endif
 #endif
 
 #define __enum_header(_name, _val) HDR_##_name,
