@@ -859,15 +859,36 @@ static char *uh_handle_alias(char *old_url)
 
 static void uh_output_redirect(struct client *cl)
 {
-	char *redirect_str="<html><head><title></title><script>(function(){window.location.href= \"http://192.168.1.1/con/con_inet_auth.html\";})();</script></head><body></body></html>";
-	cl->request.disable_chunked = true;
-	cl->request.connection_close = true;
-	uh_http_header(cl, 200, "OK");
-	ustream_printf(cl->us, "Content-Length: %d\r\n", strlen(redirect_str));
-	ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
-	ustream_printf(cl->us, redirect_str);
-	uh_request_done(cl);
+#if 0
+    char *redirect_str="<html><head><title></title><script>(function(){window.location.href= \"http://192.168.1.1/con/con_inet_auth.html\";})();</script></head><body></body></html>";
+    cl->request.disable_chunked = true;
+    cl->request.connection_close = true;
+    uh_http_header(cl, 200, "OK");
+    ustream_printf(cl->us, "Content-Length: %d\r\n", strlen(redirect_str));
+    ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
+    ustream_printf(cl->us, redirect_str);
+    uh_request_done(cl);
+#endif
+#if 0
+    cl->request.disable_chunked = true;
+    cl->request.connection_close = true;
+    uh_http_header(cl, 302, "Found");
+    ustream_printf(cl->us, "Content-Length: 0\r\n");
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"pragma\" CONTENT=\"no-cache\">\r\n"); 
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"Cache-Control\" CONTENT=\"no-store, must-revalidate\">\r\n"); 
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"Wed, 26 Feb 1997 08:21:57 GMT\">\r\n");
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"0\">\r\n");
+    ustream_printf(cl->us, "Location: http://%s/con/con_inet_auth.html\r\n\r\n",inet_ntoa(cl->srv_addr.in));
+    uh_request_done(cl);
+#endif
+    cl->request.disable_chunked = true;
+    cl->request.connection_close = true;
+    uh_http_header(cl, 302, "Found");
+    ustream_printf(cl->us, "Content-Length: 0\r\n");
+    ustream_printf(cl->us, "Location: http://%s/con/con_inet_auth.html\r\n\r\n",inet_ntoa(cl->srv_addr.in));
+    uh_request_done(cl);
 }
+
 
 static bool uh_set_auth_status(struct client *cl)
 {
