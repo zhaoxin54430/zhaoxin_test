@@ -18,7 +18,7 @@ define Package/clatdm
   SECTION:=net
   CATEGORY:=Network
   TITLE:=clatdm
-  DEPENDS:=+libshmem
+  DEPENDS:=+libshmem +libcurl
 endef
 
 define Build/Prepare
