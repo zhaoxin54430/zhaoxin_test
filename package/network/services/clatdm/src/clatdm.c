@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2012, St鑼卲han Kochen <stephan@kochen.nl>
+ * Copyright 2012, Sté‘¼å²han Kochen <stephan@kochen.nl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -39,7 +39,8 @@
 #define CHECK_AUTH_TIMEOUT  180  //seconds
 #define AUTH_SUCCESS_TIMEOUT  43200 //seconds 12 hours
 #define WAN_INTERFACE_NAME "eth0.2"
-#define CURL_PERFORM_TIMEOUT 30 //seconds
+#define CURL_PERFORM_TIMEOUT 40 //seconds
+#define CURL_DNS_CACHE_TIMEOUT 14400 //seconds
 
 all_client_info *shm_ptr=NULL;
 static bool wan_hwaddr_valid=false;
@@ -97,16 +98,38 @@ size_t get_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
     //clatdm_error("get response data:%s", ptr);
     if(all_size<(sizeof(buf)-1))
     {
-        memset(buf, ptr, all_size);
+        memcpy(buf, ptr, all_size);
         buf[all_size]=0;
         clatdm_error("get response data:%s", buf);
     }
     clatdm_error("get response size:%d", all_size);
     return(all_size);
 }
+size_t post_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    size_t all_size=nmemb*size;
+    char buf[64];
+    
+    //clatdm_error("get response data:%s", ptr);
+    if(all_size<(sizeof(buf)-1))
+    {
+        memcpy(buf, ptr, all_size);
+        buf[all_size]=0;
+        clatdm_error("post response data:%s", buf);
+    }
+    clatdm_error("post response size:%d", all_size);
+    return(all_size);
+}
 CURLcode curl_get_init(char *url)
 {
     CURLcode res=CURLE_HTTP_RETURNED_ERROR;
+    
+    if( !url )
+    {
+        clatdm_error("curl_get url null");
+        return res;
+    }
+    
     if(curl_handle)
     {
         res=curl_easy_setopt(curl_handle, CURLOPT_URL, url);
@@ -121,15 +144,117 @@ CURLcode curl_get_init(char *url)
             clatdm_error("CURLOPT_WRITEFUNCTION error");
             return res;
         }
-        res=curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 30);
+        res=curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, CURL_PERFORM_TIMEOUT);
         if(res != CURLE_OK)
         {
             clatdm_error("CURLOPT_TIMEOUT error");
             return res;
         }
+        res=curl_easy_setopt(curl_handle, CURLOPT_DNS_CACHE_TIMEOUT, CURL_DNS_CACHE_TIMEOUT);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_DNS_CACHE_TIMEOUT error");
+            return res;
+        }
+        /*after perform, close the socket*/
+        res=curl_easy_setopt(curl_handle, CURLOPT_FORBID_REUSE, 1L);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_FORBID_REUSE error");
+            return res;
+        }
     }
     return res;
 }
+CURLcode curl_post_init(char *url)
+{
+    CURLcode res=CURLE_HTTP_RETURNED_ERROR;
+
+    if( !url  )
+    {
+        clatdm_error("curl_post url null");
+        return res;
+    }
+    
+    if(curl_handle)
+    {
+        res=curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_URL error");
+            return res;
+        }
+        res=curl_easy_setopt(curl_handle, CURLOPT_POST, 1L);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_POST error");
+            return res;
+        }
+        res=curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, post_write_callback);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_WRITEFUNCTION error");
+            return res;
+        }        
+        res=curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, CURL_PERFORM_TIMEOUT);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_TIMEOUT error");
+            return res;
+        }
+        res=curl_easy_setopt(curl_handle, CURLOPT_DNS_CACHE_TIMEOUT, CURL_DNS_CACHE_TIMEOUT);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_DNS_CACHE_TIMEOUT error");
+            return res;
+        }
+        /*after perform, close the socket*/
+        res=curl_easy_setopt(curl_handle, CURLOPT_FORBID_REUSE, 1L);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_FORBID_REUSE error");
+            return res;
+        }
+    }
+    return res;
+}
+
+/*
+ * The data pointed to is NOT copied by the library: as a consequence, 
+ * it must be preserved by the calling application until the associated transfer finishes.
+ * libcurl will not convert or encode it for you in any way. For example, 
+ * the web server may assume that this data is url-encoded.
+ * You can use curl_easy_escape to url-encode your data, if necessary. 
+ * It returns a pointer to an encoded string that can be passed as postdata. 
+*/
+CURLcode curl_post_data(char *data, int data_len)
+{
+    CURLcode res=CURLE_HTTP_RETURNED_ERROR;
+
+    if( !data || (data_len==0) )
+    {
+        clatdm_error("post_data arg error");
+        return res;
+    }
+    
+    if(curl_handle)
+    {      
+        res=curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, data);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_POSTFIELDS error");
+            return res;
+        }
+        res=curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE, data_len);
+        if(res != CURLE_OK)
+        {
+            clatdm_error("CURLOPT_POSTFIELDSIZE error");
+            return res;
+        }
+    }
+    return res;
+}
+
 int main(int argc, char **argv)
 {  
     void *ptr=NULL;
@@ -211,7 +336,7 @@ int main(int argc, char **argv)
     }
 //clatdm_error("sizeof client_info %d", sizeof(client_info));    
     curl_init();
-    if(curl_get_init(CLATDM_PATH)!=CURLE_OK)
+    if(curl_post_init(CLATDM_PATH)!=CURLE_OK)
     {
         if(curl_handle)
             curl_easy_cleanup(curl_handle);
@@ -219,9 +344,29 @@ int main(int argc, char **argv)
         curl_global_cleanup();
         goto quit_mem;
     }
-    res = curl_easy_perform(curl_handle);
-    if(res != CURLE_OK)
-        clatdm_error("curl perform failed %s", curl_easy_strerror(res));
+    if(curl_post_data("auth=BCD1773432C8", strlen("auth=BCD1773432C8"))!=CURLE_OK)
+    {
+        clatdm_error("curl set post data failed %s", curl_easy_strerror(res));
+    }
+    else
+    {
+        res = curl_easy_perform(curl_handle);
+        if(res != CURLE_OK)
+            clatdm_error("curl perform failed %s", curl_easy_strerror(res));
+    }
+#if 0  
+    sleep(180);
+    if(curl_post_data("auth=0210183344AF", strlen("auth=0210183344AF"))!=CURLE_OK)
+    {
+        clatdm_error("curl set post data failed %s", curl_easy_strerror(res));
+    }
+    else
+    {
+        res = curl_easy_perform(curl_handle);
+        if(res != CURLE_OK)
+            clatdm_error("curl perform failed %s", curl_easy_strerror(res));
+    }
+#endif
 
     long response_code;
     if(curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code)==CURLE_OK)
