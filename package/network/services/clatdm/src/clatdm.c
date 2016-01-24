@@ -324,16 +324,18 @@ int main(int argc, char **argv)
         shm_ptr->client_num=0;
         sem_unlock();
     }
-
+    
     if(get_wan_hwaddr(wan_hwaddr))
     {
         wan_hwaddr_valid=true;
     }
     else
     {
+        /*in the bootup, get the wan hwaddr will failed, 
+        so if wan_hwaddr_valid=false, need do again in the below*/
         clatdm_error("get_wan_hwaddr failed");
-        goto quit_mem;
-    }
+        //goto quit_mem;
+    }    
 //clatdm_error("sizeof client_info %d", sizeof(client_info));    
     curl_init();
     if(curl_post_init(CLATDM_PATH)!=CURLE_OK)
@@ -344,7 +346,7 @@ int main(int argc, char **argv)
         curl_global_cleanup();
         goto quit_mem;
     }
-    if(curl_post_data("auth=BCD1773432C8", strlen("auth=BCD1773432C8"))!=CURLE_OK)
+    if(curl_post_data("auth=021018112233C0A80155021018EEEEEE", strlen("auth=021018112233C0A80155021018EEEEEE"))!=CURLE_OK)
     {
         clatdm_error("curl set post data failed %s", curl_easy_strerror(res));
     }
@@ -356,7 +358,7 @@ int main(int argc, char **argv)
     }
 #if 0  
     sleep(180);
-    if(curl_post_data("auth=0210183344AF", strlen("auth=0210183344AF"))!=CURLE_OK)
+    if(curl_post_data("auth=021018112233C0A80155021018EEEEEE", strlen("auth=021018112233C0A80155021018EEEEEE"))!=CURLE_OK)
     {
         clatdm_error("curl set post data failed %s", curl_easy_strerror(res));
     }
