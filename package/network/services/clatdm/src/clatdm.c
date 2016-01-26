@@ -47,6 +47,115 @@ static bool wan_hwaddr_valid=false;
 static char wan_hwaddr[6];
 static CURL *curl_handle=NULL;
 
+#define ARP_CACHE       "/proc/net/arp"
+#define ARP_LINE_FORMAT "%s %*s %*s %s %*s %*s"
+#define ARP_BUFFER_LEN 128
+
+typedef struct arpInfo{
+    char mac_addr[6];
+    uint32_t ip4_addr;
+}arp_info;
+
+typedef struct allArpInfo{
+    char client_num;
+    arp_info client[MAX_CLIENTS_NUMBER+32];
+}all_arp_info;
+
+static all_arp_info client_arp_info;
+
+/* Convert from 00:AA:00:BB:00:CC to 00AA00BB00CC
+*/      
+void string_to_mac_address(char* src,char* dest)
+{
+    const char *s = src;
+    size_t len = strlen(src);
+
+	if (len) {
+		/* Copy string up to the maximum size of the dest buffer */
+		while (len!= 0) {
+			if(*s==':')
+			{
+				s++;
+				len--;
+				continue;
+			}
+			if(*s== '\0')
+				break;
+			*dest=*s;
+			s++;
+			dest++;
+			len--;
+		}
+		*dest = '\0';
+	}
+
+}
+
+static int _is_hex(char c)
+{
+    return (((c >= '0') && (c <= '9')) ||
+            ((c >= 'A') && (c <= 'F')) ||
+            ((c >= 'a') && (c <= 'f')));
+}
+
+void string_to_hex(char *string, char *key, int len)
+{
+	char tmpBuf[4];
+	int idx, ii=0;
+	for (idx=0; idx<len; idx+=2) {
+		tmpBuf[0] = string[idx];
+		tmpBuf[1] = string[idx+1];
+		tmpBuf[2] = 0;
+		if ( !_is_hex(tmpBuf[0]) || !_is_hex(tmpBuf[1]))
+			return 0;
+
+		key[ii++] = (char) strtol(tmpBuf, (char**)NULL, 16);
+	}
+	return 1;
+}
+
+int get_arp_info(void)
+{
+    char tmpbuf[ARP_BUFFER_LEN];
+    char ipAddr[32], hwAddr[32];
+    struct in_addr addr;
+    int count = 0;
+
+    client_arp_info.client_num=0;
+    
+    FILE *arpCache = fopen(ARP_CACHE, "r");
+    if (!arpCache)
+    {
+        clatdm_error("open file \"" ARP_CACHE "\" failed");
+        return -1;
+    }
+    if (!fgets(tmpbuf, sizeof(tmpbuf), arpCache))
+    {
+        return -1;
+    }
+    memset(tmpbuf, 0, sizeof(tmpbuf));
+    while (2 == fscanf(arpCache, ARP_LINE_FORMAT, ipAddr, hwAddr))
+    {
+        inet_aton(ipAddr, &addr);
+        client_arp_info.client[client_arp_info.client_num].ip4_addr=ntohl(addr.s_addr);
+        string_to_mac_address(hwAddr, tmpbuf);
+        string_to_hex(tmpbuf, client_arp_info.client[client_arp_info.client_num].mac_addr, 12);
+#if 0       
+        clatdm_info("arp ip=%x  mac=%02x:%02x:%02x:%02x:%02x:%02x", 
+            client_arp_info.client[client_arp_info.client_num].ip4_addr, 
+            client_arp_info.client[client_arp_info.client_num].mac_addr[0]&0xFF,
+            client_arp_info.client[client_arp_info.client_num].mac_addr[1]&0xFF,
+            client_arp_info.client[client_arp_info.client_num].mac_addr[2]&0xFF,
+            client_arp_info.client[client_arp_info.client_num].mac_addr[3]&0xFF,
+            client_arp_info.client[client_arp_info.client_num].mac_addr[4]&0xFF,
+            client_arp_info.client[client_arp_info.client_num].mac_addr[5]&0xFF);
+#endif           
+        client_arp_info.client_num++;
+    }
+    fclose(arpCache);
+    return 0;
+}
+
 bool get_wan_hwaddr(char *wan_hwaddr)
 {
     int fd=-1;
@@ -375,6 +484,9 @@ int main(int argc, char **argv)
     {
         clatdm_error("curl perform response code %d", response_code);
     }
+
+    get_arp_info();
+    
     while(true)
     {
 #if 0    
