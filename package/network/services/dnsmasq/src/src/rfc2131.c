@@ -2601,7 +2601,7 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
                 shm_ptr->client[i].release_time=0;
 #endif                
                 shm_ptr->client[i].status=REDIRECT_RULE;
-                shm_ptr->client[i].time=0;
+                shm_ptr->client[i].time_out=0;
                 memcpy(shm_ptr->client[i].mac_addr, mac, 6);
                 delete_prev_rule=TRUE;
                 add_rule=TRUE;
@@ -2626,7 +2626,7 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
         shm_ptr->client[shm_ptr->client_num].release_time=0;
 #endif        
         shm_ptr->client[shm_ptr->client_num].status=REDIRECT_RULE;
-        shm_ptr->client[shm_ptr->client_num].time=0;
+        shm_ptr->client[shm_ptr->client_num].time_out=0;
         memcpy(shm_ptr->client[shm_ptr->client_num].mac_addr, mac, 6);
         shm_ptr->client_num++;
         add_rule=TRUE;   

@@ -912,7 +912,7 @@ static bool uh_set_auth_status(struct client *cl)
             if((shm_ptr->client[i].status==REDIRECT_RULE))
             {
                 shm_ptr->client[i].status=HTTP_SEND_AUTH;
-                shm_ptr->client[i].time=time.tv_sec;
+                shm_ptr->client[i].time_out=time.tv_sec+CHECK_AUTH_TIMEOUT;
                 isChange=true;
             }
             break;
