@@ -11,6 +11,7 @@
 #define DELETE_REDIRECT_RULE_FORMAT  "iptables -t nat -D prerouting_lan_rule -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
 #define ADD_ALLOW_RULE_FORMAT  "iptables -t filter -I forwarding_lan_rule 1 -s %s -j ACCEPT"
 #define DELETE_ALLOW_RULE_FORMAT  "iptables -t filter -D forwarding_lan_rule -s %s -j ACCEPT"
+//#define CLIENT_RECORD_RELEASE_TIME
 
 
 typedef enum
@@ -33,11 +34,13 @@ typedef enum
 }client_status;
 /*if modify the client_info,need modify the MAX_CLIENTS_NUMBER, it make sure MAX_CLIENTS_NUMBER * sizeof(client_info) < SHMEM_SIZE -1 */
 typedef struct clientInfo{
-    char mac_addr[6];
+    unsigned char mac_addr[6];
     uint32_t ip4_addr;
     client_status status;
     time_t time;/*the time for HTTP_SEND_AUTH or AUTH_SUCCESSFUL status*/
+#ifdef CLIENT_RECORD_RELEASE_TIME    
     time_t release_time;/*accept the client's release request time*/
+#endif
 }client_info;
 
 typedef struct allClientInfo{

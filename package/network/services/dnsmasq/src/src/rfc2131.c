@@ -65,7 +65,9 @@ static struct dhcp_opt *pxe_opts(int pxe_arch, struct dhcp_netid *netid, struct 
 struct dhcp_boot *find_boot(struct dhcp_netid *netid);
 
 void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf);
+#ifdef CLIENT_RECORD_RELEASE_TIME 
 void process_client_delete(void *addr);
+#endif
   
 size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		  size_t sz, time_t now, int unicast_dest, int *is_inform, int pxe, struct in_addr fallback)
@@ -566,7 +568,9 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 		     {
 		       /* lease exists, wrong network. */
 		       lease_prune(lease, now);
+#ifdef CLIENT_RECORD_RELEASE_TIME                
 		       process_client_delete(&lease->addr);
+#endif
 		       lease = NULL;
 		     }
 		   if (!address_allocate(context, &mess->yiaddr, mess->chaddr, mess->hlen, tagif_netid, now))
@@ -938,7 +942,9 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       if (lease && lease->addr.s_addr == option_addr(opt).s_addr)
         {
 	lease_prune(lease, now);
+#ifdef CLIENT_RECORD_RELEASE_TIME     
 	process_client_delete(&lease->addr);
+#endif
         }
       if (have_config(config, CONFIG_ADDR) && 
 	  config->addr.s_addr == option_addr(opt).s_addr)
@@ -965,7 +971,9 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
       if (lease && lease->addr.s_addr == mess->ciaddr.s_addr)
         {
 	lease_prune(lease, now);
+#ifdef CLIENT_RECORD_RELEASE_TIME     
 	process_client_delete(&lease->addr);
+#endif
 	    }
       else
 	message = _("unknown lease");
@@ -1122,7 +1130,9 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
 	      if (lease && lease->addr.s_addr != mess->yiaddr.s_addr)
 		{
 		  lease_prune(lease, now);
+#ifdef CLIENT_RECORD_RELEASE_TIME           
 		  process_client_delete(&lease->addr);
+#endif
 		  lease = NULL;
 		}
 	    }
@@ -2587,7 +2597,9 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
             /*we think that this is a new client*/
             if(memcmp(shm_ptr->client[i].mac_addr, mac, 6)!=0)
             {
+#ifdef CLIENT_RECORD_RELEASE_TIME                
                 shm_ptr->client[i].release_time=0;
+#endif                
                 shm_ptr->client[i].status=REDIRECT_RULE;
                 shm_ptr->client[i].time=0;
                 memcpy(shm_ptr->client[i].mac_addr, mac, 6);
@@ -2610,7 +2622,9 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
             return;
         }   
         shm_ptr->client[shm_ptr->client_num].ip4_addr=addr_int;
+#ifdef CLIENT_RECORD_RELEASE_TIME        
         shm_ptr->client[shm_ptr->client_num].release_time=0;
+#endif        
         shm_ptr->client[shm_ptr->client_num].status=REDIRECT_RULE;
         shm_ptr->client[shm_ptr->client_num].time=0;
         memcpy(shm_ptr->client[shm_ptr->client_num].mac_addr, mac, 6);
@@ -2635,6 +2649,7 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
         system(buf);
     }
 }
+#ifdef CLIENT_RECORD_RELEASE_TIME 
 void process_client_delete(void *addr)
 {
     int i=0;
@@ -2670,7 +2685,9 @@ void process_client_delete(void *addr)
     {
         if(shm_ptr->client[i].ip4_addr==addr_int)
         {
+#ifdef CLIENT_RECORD_RELEASE_TIME            
             shm_ptr->client[i].release_time=time.tv_sec;
+#endif            
             found=TRUE;
             break;
         }
@@ -2680,6 +2697,7 @@ void process_client_delete(void *addr)
     if(found==FALSE)
         my_syslog(MS_DHCP | LOG_INFO, "process_client_delete failed, addr=%s", inet_ntoa(ip_addr));
 }
+#endif
 
 #undef TRUE
 #undef FALSE
