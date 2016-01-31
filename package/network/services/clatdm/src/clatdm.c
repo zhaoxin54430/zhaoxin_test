@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2012, Sté‘¼å²han Kochen <stephan@kochen.nl>
+ * Copyright 2012, Kochen <stephan@kochen.nl>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -36,29 +36,39 @@
 #include "clatdm.h"
 #include "others.h"
 
-#define CHECK_AUTH_TIMEOUT  180  //seconds
 #define AUTH_SUCCESS_TIMEOUT  43200 //seconds 12 hours
 #define WAN_INTERFACE_NAME "eth0.2"
 #define CURL_PERFORM_TIMEOUT 40 //seconds
 #define CURL_DNS_CACHE_TIMEOUT 14400 //seconds
 
+#define CLATDM_LOOP_INTERVAL CHECK_AUTH_TIMEOUT //seconds
+#define DETECT_LEAVE_INTERVAL (4*CLATDM_LOOP_INTERVAL)
+#define NO_ARP_TIMES 10
+#define CLATDM_AUTH_CHECK_TIMES 3
+#define BRIDGE_INTERFACE_NAME "br-lan"
+#define ARP_MAX_CLIENTS_NUMBER (MAX_CLIENTS_NUMBER+32)
+
 all_client_info *shm_ptr=NULL;
 static bool wan_hwaddr_valid=false;
-static char wan_hwaddr[6];
+static unsigned char wan_hwaddr[6];
+static bool bridge_ipaddr_valid=false;
+static unsigned char bridge_ipaddr[32];
 static CURL *curl_handle=NULL;
+static char post_response_buf[64];
+static bool post_response_buf_ok=false;
 
 #define ARP_CACHE       "/proc/net/arp"
 #define ARP_LINE_FORMAT "%s %*s %*s %s %*s %*s"
 #define ARP_BUFFER_LEN 128
 
 typedef struct arpInfo{
-    char mac_addr[6];
+    unsigned char mac_addr[6];
     uint32_t ip4_addr;
 }arp_info;
 
 typedef struct allArpInfo{
     char client_num;
-    arp_info client[MAX_CLIENTS_NUMBER+32];
+    arp_info client[ARP_MAX_CLIENTS_NUMBER];
 }all_arp_info;
 
 static all_arp_info client_arp_info;
@@ -143,17 +153,47 @@ int get_arp_info(void)
 #if 0       
         clatdm_info("arp ip=%x  mac=%02x:%02x:%02x:%02x:%02x:%02x", 
             client_arp_info.client[client_arp_info.client_num].ip4_addr, 
-            client_arp_info.client[client_arp_info.client_num].mac_addr[0]&0xFF,
-            client_arp_info.client[client_arp_info.client_num].mac_addr[1]&0xFF,
-            client_arp_info.client[client_arp_info.client_num].mac_addr[2]&0xFF,
-            client_arp_info.client[client_arp_info.client_num].mac_addr[3]&0xFF,
-            client_arp_info.client[client_arp_info.client_num].mac_addr[4]&0xFF,
-            client_arp_info.client[client_arp_info.client_num].mac_addr[5]&0xFF);
-#endif           
-        client_arp_info.client_num++;
+            client_arp_info.client[client_arp_info.client_num].mac_addr[0],
+            client_arp_info.client[client_arp_info.client_num].mac_addr[1],
+            client_arp_info.client[client_arp_info.client_num].mac_addr[2],
+            client_arp_info.client[client_arp_info.client_num].mac_addr[3],
+            client_arp_info.client[client_arp_info.client_num].mac_addr[4],
+            client_arp_info.client[client_arp_info.client_num].mac_addr[5]);
+#endif
+        if(client_arp_info.client_num<ARP_MAX_CLIENTS_NUMBER)
+            client_arp_info.client_num++;
+        else
+            clatdm_error("client_arp_info is full");
     }
     fclose(arpCache);
     return 0;
+}
+
+#ifndef IFNAMSIZ
+#define IFNAMSIZ  16
+#endif
+bool get_ifaddr(const char *ifname, struct in_addr *inaddr)
+{
+	int sockfd;
+	struct ifreq ifreq;
+
+	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		//perror("socket");
+		return false;
+	}
+
+	strncpy(ifreq.ifr_name, ifname, IFNAMSIZ);
+	if (ioctl(sockfd, SIOCGIFADDR, &ifreq) < 0) {
+		close(sockfd);
+		return false;
+	}
+	else {
+		memcpy(inaddr, &(((struct sockaddr_in *)&ifreq.ifr_addr)->sin_addr),
+			sizeof(struct in_addr));
+	}
+
+	close(sockfd);
+	return true;
 }
 
 bool get_wan_hwaddr(char *wan_hwaddr)
@@ -172,8 +212,8 @@ bool get_wan_hwaddr(char *wan_hwaddr)
         {
             memcpy(wan_hwaddr, ifr.ifr_hwaddr.sa_data, 6);
             clatdm_info("wan hardware address %02x:%02x:%02x:%02x:%02x:%02x",
-            	0xFF&wan_hwaddr[0], 0xFF&wan_hwaddr[1], 0xFF&wan_hwaddr[2], 
-            	0xFF&wan_hwaddr[3], 0xFF&wan_hwaddr[4], 0xFF&wan_hwaddr[5]);
+            	wan_hwaddr[0], wan_hwaddr[1], wan_hwaddr[2], 
+            	wan_hwaddr[3], wan_hwaddr[4], wan_hwaddr[5]);
             success=true;
         } 
         else 
@@ -217,16 +257,16 @@ size_t get_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 size_t post_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
 {
     size_t all_size=nmemb*size;
-    char buf[64];
     
     //clatdm_error("get response data:%s", ptr);
-    if(all_size<(sizeof(buf)-1))
+    if(all_size<(sizeof(post_response_buf)-1))
     {
-        memcpy(buf, ptr, all_size);
-        buf[all_size]=0;
-        clatdm_error("post response data:%s", buf);
+        memcpy(post_response_buf, ptr, all_size);
+        post_response_buf[all_size]=0;
+        post_response_buf_ok=true;
+        //clatdm_error("post response data:%s", post_response_buf);
     }
-    clatdm_error("post response size:%d", all_size);
+    //clatdm_error("post response size:%d", all_size);
     return(all_size);
 }
 CURLcode curl_get_init(char *url)
@@ -363,16 +403,93 @@ CURLcode curl_post_data(char *data, int data_len)
     }
     return res;
 }
+/*
+ * return 1, do noting 
+ * return 0, OK
+ * return -1, failed
+*/
+int clatdm_auth_check(client_info *client)
+{
+    int i=0;
+    char buf[128];
+    long response_code;
+    CURLcode res;
+    
+    /*arg is null, do noting*/
+    if((client==NULL)||(client->ip4_addr==0))
+        return 1;
 
+    if(wan_hwaddr_valid==false)
+    {
+        if(get_wan_hwaddr(wan_hwaddr))
+            wan_hwaddr_valid=true;
+        else
+        {/*try again*/
+            if(get_wan_hwaddr(wan_hwaddr))
+                wan_hwaddr_valid=true;
+            else
+            {
+                clatdm_error("try get wan mac agian fail");
+                return 0; /*get wan mac failed, ??*/
+            }
+        }
+        
+    }
+    sprintf(buf, "%02X%02X%02X%02X%02X%02X%08X%02X%02X%02X%02X%02X%02X", 
+                                wan_hwaddr[0], wan_hwaddr[1], wan_hwaddr[2],
+                                wan_hwaddr[3], wan_hwaddr[4], wan_hwaddr[5],
+                                client->ip4_addr, 
+                                client->mac_addr[0], client->mac_addr[1], client->mac_addr[2], 
+                                client->mac_addr[3], client->mac_addr[4], client->mac_addr[5]);
+    
+    for(i=0; i<CLATDM_AUTH_CHECK_TIMES; i++)
+    {
+        if(curl_post_data(buf, strlen(buf))!=CURLE_OK)
+        {
+            clatdm_error("curl set post data failed %s", curl_easy_strerror(res));
+            continue;
+        }
+        else
+        {
+            post_response_buf_ok=false;
+            res = curl_easy_perform(curl_handle);
+            if(res != CURLE_OK)
+            {
+                clatdm_error("curl perform failed %s", curl_easy_strerror(res));
+                continue;
+            }
+        }
+        if(curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code)==CURLE_OK)
+        {
+            //clatdm_error("curl perform response code %d", response_code);
+            if((response_code==200)&&(post_response_buf_ok))
+            {
+                if(post_response_buf[0]=='1')
+                    return 0;
+                else
+                    return -1;
+            }
+        }
+    }
+    return -1;
+}
 int main(int argc, char **argv)
 {  
     void *ptr=NULL;
     client_info client;
     char attachExisting=false;
     FILE *flag_file=NULL;
-    int i=0;
+    int i=0, k=0;
     time_t temp_time=0;
     CURLcode res;
+    struct timeval delay = {0, 0};
+    struct timespec now_time = {0, 0};
+    time_t interval_sec=0, next_detect_time=0;
+    char detect_leave_times=0;
+    bool arp_found=false;
+    int auth_check_ret;
+    char temp_buf[256];
+    struct in_addr gw_addr, ip_addr;
 
     if(access(SHARE_MEM_FLAG, F_OK)==0)
         attachExisting=true;
@@ -444,7 +561,18 @@ int main(int argc, char **argv)
         so if wan_hwaddr_valid=false, need do again in the below*/
         clatdm_error("get_wan_hwaddr failed");
         //goto quit_mem;
-    }    
+    }
+    if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
+    {
+        bridge_ipaddr_valid=true;
+        strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
+    }
+    else
+    {
+        /*in the bootup, get bridge ipaddr maybe failed, 
+        so if bridge_ipaddr=false, need do again in the below*/
+        clatdm_error("get bridge ipaddr failed");
+    }
 //clatdm_error("sizeof client_info %d", sizeof(client_info));    
     curl_init();
     if(curl_post_init(CLATDM_PATH)!=CURLE_OK)
@@ -455,50 +583,135 @@ int main(int argc, char **argv)
         curl_global_cleanup();
         goto quit_mem;
     }
-    if(curl_post_data("auth=021018112233C0A80155021018EEEEEE", strlen("auth=021018112233C0A80155021018EEEEEE"))!=CURLE_OK)
-    {
-        clatdm_error("curl set post data failed %s", curl_easy_strerror(res));
-    }
-    else
-    {
-        res = curl_easy_perform(curl_handle);
-        if(res != CURLE_OK)
-            clatdm_error("curl perform failed %s", curl_easy_strerror(res));
-    }
-#if 0  
-    sleep(180);
-    if(curl_post_data("auth=021018112233C0A80155021018EEEEEE", strlen("auth=021018112233C0A80155021018EEEEEE"))!=CURLE_OK)
-    {
-        clatdm_error("curl set post data failed %s", curl_easy_strerror(res));
-    }
-    else
-    {
-        res = curl_easy_perform(curl_handle);
-        if(res != CURLE_OK)
-            clatdm_error("curl perform failed %s", curl_easy_strerror(res));
-    }
-#endif
 
-    long response_code;
-    if(curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code)==CURLE_OK)
-    {
-        clatdm_error("curl perform response code %d", response_code);
-    }
-
-    get_arp_info();
-    
+    clock_gettime(CLOCK_MONOTONIC, &now_time);
+    next_detect_time=now_time.tv_sec+DETECT_LEAVE_INTERVAL;
+    client.ip4_addr=0;
     while(true)
     {
-#if 0    
+        /*do the auth check for last loop*/
+        if(client.ip4_addr!=0)
+        {
+            auth_check_ret=clatdm_auth_check(&client);
+            if(auth_check_ret !=1)
+            {
+                sem_lock();
+                for(i=0; i<shm_ptr->client_num; i++)
+                {
+                    if((client.ip4_addr==shm_ptr->client[i].ip4_addr)&&
+                        (memcmp(shm_ptr->client[i].mac_addr, client.mac_addr, 6)==0))
+                    {
+                        if(auth_check_ret==0)
+                            shm_ptr->client[i].status=AUTH_SUCCESSFUL; //auth success
+                        else
+                            shm_ptr->client[i].status=REDIRECT_RULE; //auth failed
+                        break;
+                    }
+                }
+                sem_unlock();
+            }
+            /*auth failed process firewall rules*/
+            if(auth_check_ret==-1)
+            {
+                ip_addr.s_addr=htonl(client.ip4_addr);
+                sprintf(temp_buf, DELETE_ALLOW_RULE_FORMAT, inet_ntoa(ip_addr));
+                system(temp_buf);
+
+                if(bridge_ipaddr_valid==false)
+                {
+                    if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
+                    {
+                        bridge_ipaddr_valid=true;
+                        strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
+                    }
+                    else
+                    {/*try again*/
+                        if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
+                        {
+                            bridge_ipaddr_valid=true;
+                            strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
+                        }
+                        else
+                        {
+                            clatdm_error("try get bridge ipaddr fail");
+                        }
+                    }
+                }
+                if(bridge_ipaddr_valid)
+                {
+                    sprintf(temp_buf, ADD_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), bridge_ipaddr);
+                    system(temp_buf);
+                }
+            }
+        }
+        /*check the client which will to be do auth check*/
+        delay.tv_sec = CLATDM_LOOP_INTERVAL;
+        clock_gettime(CLOCK_MONOTONIC, &now_time);
+        client.ip4_addr=0;
         sem_lock();
         for(i=0; i<shm_ptr->client_num; i++)
         {
-            memcpy(&client, &(shm_ptr->client[i]), sizeof(client_info));
+            if((shm_ptr->client[i].status==ADD_ALLOW_RULE)&&(shm_ptr->client[i].time_out>0)) //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
+            {
+                if(shm_ptr->client[i].time_out>now_time.tv_sec)
+                {
+                    interval_sec=shm_ptr->client[i].time_out-now_time.tv_sec;
+                    if(interval_sec<delay.tv_sec)
+                    {
+                        delay.tv_sec=interval_sec;
+                        memcpy(&client, &(shm_ptr->client[i]), sizeof(client_info));
+                    }
+                }
+                else
+                {
+                    delay.tv_sec=0;
+                    memcpy(&client, &(shm_ptr->client[i]), sizeof(client_info));
+                    break;
+                }
+            }
         }
         sem_unlock();
-#else
-    sleep(180);
-#endif
+        if(delay.tv_sec !=0)
+        { /*sleep*/
+            delay.tv_usec = 0;
+            select(0, NULL, NULL, NULL, &delay);
+        }
+        /*process time out client*/
+        clock_gettime(CLOCK_MONOTONIC, &now_time);
+        if((next_detect_time<=now_time.tv_sec)&&(get_arp_info()==0))
+        {
+            next_detect_time=now_time.tv_sec+DETECT_LEAVE_INTERVAL;
+            
+            sem_lock();
+            for(i=0; i<shm_ptr->client_num; i++)
+            {
+                if(shm_ptr->client[i].status==AUTH_SUCCESSFUL)
+                {
+                    arp_found=false;
+                    
+                    for(k=0; k<client_arp_info.client_num; k++)
+                    {
+                        if((shm_ptr->client[i].ip4_addr==client_arp_info.client[k].ip4_addr)&&
+                            (memcmp(shm_ptr->client[i].mac_addr, client_arp_info.client[k].mac_addr, 6)==0))
+                        {
+                            arp_found=true;
+                            shm_ptr->client[i].detec_leave=0;
+                        }
+                    }
+                    if(arp_found==false)
+                        shm_ptr->client[i].detec_leave++;
+
+                    if(shm_ptr->client[i].detec_leave>=NO_ARP_TIMES)
+                    {
+                        if(shm_ptr->client_num<MAX_CLIENTS_NUMBER)
+                            memmove(&(shm_ptr->client[i]), &(shm_ptr->client[i+1]), sizeof(client_info));
+                        /*shm_ptr->client_num==MAX_CLIENTS_NUMBER,don't do memmove*/
+                        shm_ptr->client_num--;
+                    }
+                }
+            }
+            sem_unlock();
+        }
     }
     shm_mem_detach(ptr);
     shm_ptr=NULL;

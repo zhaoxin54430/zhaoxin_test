@@ -31,11 +31,13 @@ typedef enum
 {
     REDIRECT_RULE    = 1, /*client request ip successful, and had added redirect rule to firewall*/
     HTTP_SEND_AUTH , /*uhttpd had sended auth paage to client*/
+    ADD_ALLOW_RULE , /*user had click the 'connect' button, router had add allow rule for the client*/
     AUTH_SUCCESSFUL , /*client had auth successful*/
 }client_status;
 /*if modify the client_info,need modify the MAX_CLIENTS_NUMBER, it make sure MAX_CLIENTS_NUMBER * sizeof(client_info) < SHMEM_SIZE -1 */
 typedef struct clientInfo{
     unsigned char mac_addr[6];
+    char detec_leave;
     uint32_t ip4_addr;
     client_status status;
     time_t time_out;/*the time for HTTP_SEND_AUTH or AUTH_SUCCESSFUL status*/
