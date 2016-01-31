@@ -707,6 +707,7 @@ int main(int argc, char **argv)
                             memmove(&(shm_ptr->client[i]), &(shm_ptr->client[i+1]), sizeof(client_info));
                         /*shm_ptr->client_num==MAX_CLIENTS_NUMBER,don't do memmove*/
                         shm_ptr->client_num--;
+                        i--;
                     }
                 }
             }
