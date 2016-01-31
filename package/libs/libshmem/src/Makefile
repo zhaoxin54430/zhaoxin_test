@@ -1,5 +1,5 @@
 CC=gcc
-WFLAGS=-Wall
+WFLAGS=-Wall -Werror
 CFLAGS=-O2
 INCLUDES=-Iinclude
 
