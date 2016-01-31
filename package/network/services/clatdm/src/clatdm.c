@@ -602,7 +602,10 @@ int main(int argc, char **argv)
                         (memcmp(shm_ptr->client[i].mac_addr, client.mac_addr, 6)==0))
                     {
                         if(auth_check_ret==0)
+                        {
                             shm_ptr->client[i].status=AUTH_SUCCESSFUL; //auth success
+                            shm_ptr->client[i].detec_leave=0;
+                        }
                         else
                             shm_ptr->client[i].status=REDIRECT_RULE; //auth failed
                         break;
