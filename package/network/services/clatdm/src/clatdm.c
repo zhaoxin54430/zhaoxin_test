@@ -46,7 +46,8 @@
 #define NO_ARP_TIMES 10
 #define CLATDM_AUTH_CHECK_TIMES 3
 #define BRIDGE_INTERFACE_NAME "br-lan"
-#define ARP_MAX_CLIENTS_NUMBER (MAX_CLIENTS_NUMBER+32)
+#define ARP_MAX_CLIENTS_NUMBER (2*MAX_CLIENTS_NUMBER)
+#define TRIGGER_AUTH_CHECK_STATUS  HTTP_SEND_AUTH
 
 all_client_info *shm_ptr=NULL;
 static bool wan_hwaddr_valid=false;
@@ -58,8 +59,12 @@ static char post_response_buf[64];
 static bool post_response_buf_ok=false;
 
 #define ARP_CACHE       "/proc/net/arp"
-#define ARP_LINE_FORMAT "%s %*s %*s %s %*s %*s"
+#define ARP_LINE_FORMAT "%s %*s %x %s %*s %*s"
 #define ARP_BUFFER_LEN 128
+
+/*in the relase vesion, this must define to null!!!!!!!*/
+#define main_function_debug  clatdm_info
+
 
 typedef struct arpInfo{
     unsigned char mac_addr[6];
@@ -129,7 +134,7 @@ int get_arp_info(void)
     char tmpbuf[ARP_BUFFER_LEN];
     char ipAddr[32], hwAddr[32];
     struct in_addr addr;
-    int count = 0;
+    int count = 0, flags=0;
 
     client_arp_info.client_num=0;
     
@@ -144,8 +149,11 @@ int get_arp_info(void)
         return -1;
     }
     memset(tmpbuf, 0, sizeof(tmpbuf));
-    while (2 == fscanf(arpCache, ARP_LINE_FORMAT, ipAddr, hwAddr))
+    while (3 == fscanf(arpCache, ARP_LINE_FORMAT, ipAddr, &flags, hwAddr))
     {
+        if((flags!=0x02)&&(flags!=0x04)&&(flags!=0x08)) //only process 0x02, 0x04, 0x08
+            continue;
+            
         inet_aton(ipAddr, &addr);
         client_arp_info.client[client_arp_info.client_num].ip4_addr=ntohl(addr.s_addr);
         string_to_mac_address(hwAddr, tmpbuf);
@@ -196,7 +204,7 @@ bool get_ifaddr(const char *ifname, struct in_addr *inaddr)
 	return true;
 }
 
-bool get_wan_hwaddr(char *wan_hwaddr)
+bool get_wan_hwaddr(unsigned char *wan_hwaddr)
 {
     int fd=-1;
     bool success=false;
@@ -264,9 +272,9 @@ size_t post_write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
         memcpy(post_response_buf, ptr, all_size);
         post_response_buf[all_size]=0;
         post_response_buf_ok=true;
-        //clatdm_error("post response data:%s", post_response_buf);
+        main_function_debug("post response data:%s", post_response_buf);
     }
-    //clatdm_error("post response size:%d", all_size);
+    main_function_debug("post response size:%d", all_size);
     return(all_size);
 }
 CURLcode curl_get_init(char *url)
@@ -414,6 +422,7 @@ int clatdm_auth_check(client_info *client)
     char buf[128];
     long response_code;
     CURLcode res;
+    struct timespec now_time = {0, 0};
     
     /*arg is null, do noting*/
     if((client==NULL)||(client->ip4_addr==0))
@@ -435,18 +444,19 @@ int clatdm_auth_check(client_info *client)
         }
         
     }
-    sprintf(buf, "%02X%02X%02X%02X%02X%02X%08X%02X%02X%02X%02X%02X%02X", 
+    sprintf(buf, "auth=%02X%02X%02X%02X%02X%02X%08X%02X%02X%02X%02X%02X%02X", 
                                 wan_hwaddr[0], wan_hwaddr[1], wan_hwaddr[2],
                                 wan_hwaddr[3], wan_hwaddr[4], wan_hwaddr[5],
                                 client->ip4_addr, 
                                 client->mac_addr[0], client->mac_addr[1], client->mac_addr[2], 
                                 client->mac_addr[3], client->mac_addr[4], client->mac_addr[5]);
     
+    main_function_debug("auth token %s ", buf);
     for(i=0; i<CLATDM_AUTH_CHECK_TIMES; i++)
     {
         if(curl_post_data(buf, strlen(buf))!=CURLE_OK)
         {
-            clatdm_error("curl set post data failed %s", curl_easy_strerror(res));
+            clatdm_error("curl set post data failed");
             continue;
         }
         else
@@ -455,13 +465,15 @@ int clatdm_auth_check(client_info *client)
             res = curl_easy_perform(curl_handle);
             if(res != CURLE_OK)
             {
-                clatdm_error("curl perform failed %s", curl_easy_strerror(res));
+                clatdm_error("curl perform failed res=%d ", res);
                 continue;
             }
         }
         if(curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE, &response_code)==CURLE_OK)
         {
             //clatdm_error("curl perform response code %d", response_code);
+            main_function_debug("auth check resp_code=%d buf_ok=%d resp_buf=%s", response_code, 
+                        post_response_buf_ok ,post_response_buf);
             if((response_code==200)&&(post_response_buf_ok))
             {
                 if(post_response_buf[0]=='1')
@@ -471,6 +483,27 @@ int clatdm_auth_check(client_info *client)
             }
         }
     }
+    /*if can't connect to auth server, delay to auth*/
+    if((res==CURLE_COULDNT_RESOLVE_PROXY)||
+        (res==CURLE_COULDNT_RESOLVE_HOST)||
+        (res==CURLE_COULDNT_CONNECT))
+     {
+        clock_gettime(CLOCK_MONOTONIC, &now_time);
+        sem_lock();
+        for(i=0; i<shm_ptr->client_num; i++)
+        {   //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
+            if((shm_ptr->client[i].status==HTTP_SEND_AUTH)&&
+                (client->ip4_addr==shm_ptr->client[i].ip4_addr)&&
+                (memcmp(shm_ptr->client[i].mac_addr, client->mac_addr, 6)==0))
+            {
+                shm_ptr->client[i].time_out=now_time.tv_sec+(CHECK_AUTH_TIMEOUT<<1); 
+                break;
+            }
+        }
+        sem_unlock();
+        return 1;
+     }
+        
     return -1;
 }
 int main(int argc, char **argv)
@@ -597,15 +630,13 @@ int main(int argc, char **argv)
             {
                 sem_lock();
                 for(i=0; i<shm_ptr->client_num; i++)
-                {
-                    if((client.ip4_addr==shm_ptr->client[i].ip4_addr)&&
+                {   //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
+                    if((shm_ptr->client[i].status==HTTP_SEND_AUTH)&&
+                        (client.ip4_addr==shm_ptr->client[i].ip4_addr)&&
                         (memcmp(shm_ptr->client[i].mac_addr, client.mac_addr, 6)==0))
                     {
                         if(auth_check_ret==0)
-                        {
                             shm_ptr->client[i].status=AUTH_SUCCESSFUL; //auth success
-                            shm_ptr->client[i].detec_leave=0;
-                        }
                         else
                             shm_ptr->client[i].status=REDIRECT_RULE; //auth failed
                         break;
@@ -619,6 +650,7 @@ int main(int argc, char **argv)
                 ip_addr.s_addr=htonl(client.ip4_addr);
                 sprintf(temp_buf, DELETE_ALLOW_RULE_FORMAT, inet_ntoa(ip_addr));
                 system(temp_buf);
+                main_function_debug("auth failed %s", temp_buf);
 
                 if(bridge_ipaddr_valid==false)
                 {
@@ -644,6 +676,7 @@ int main(int argc, char **argv)
                 {
                     sprintf(temp_buf, ADD_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), bridge_ipaddr);
                     system(temp_buf);
+                    main_function_debug("auth failed %s", temp_buf);
                 }
             }
         }
@@ -654,7 +687,7 @@ int main(int argc, char **argv)
         sem_lock();
         for(i=0; i<shm_ptr->client_num; i++)
         {
-            if((shm_ptr->client[i].status==ADD_ALLOW_RULE)&&(shm_ptr->client[i].time_out>0)) //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
+            if((shm_ptr->client[i].status==HTTP_SEND_AUTH)&&(shm_ptr->client[i].time_out>0)) //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
             {
                 if(shm_ptr->client[i].time_out>now_time.tv_sec)
                 {
@@ -674,6 +707,7 @@ int main(int argc, char **argv)
             }
         }
         sem_unlock();
+        main_function_debug("next auth client ip%X  sleep=%d", client.ip4_addr, delay.tv_sec);
         if(delay.tv_sec !=0)
         { /*sleep*/
             delay.tv_usec = 0;
@@ -688,7 +722,7 @@ int main(int argc, char **argv)
             sem_lock();
             for(i=0; i<shm_ptr->client_num; i++)
             {
-                if(shm_ptr->client[i].status==AUTH_SUCCESSFUL)
+                //if(shm_ptr->client[i].status==AUTH_SUCCESSFUL)
                 {
                     arp_found=false;
                     
@@ -706,6 +740,7 @@ int main(int argc, char **argv)
 
                     if(shm_ptr->client[i].detec_leave>=NO_ARP_TIMES)
                     {
+                        main_function_debug("client ip=%X is timeout client_num=%d", shm_ptr->client[i].ip4_addr, shm_ptr->client_num);
                         if(shm_ptr->client_num<MAX_CLIENTS_NUMBER)
                             memmove(&(shm_ptr->client[i]), &(shm_ptr->client[i+1]), sizeof(client_info));
                         /*shm_ptr->client_num==MAX_CLIENTS_NUMBER,don't do memmove*/
