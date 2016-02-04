@@ -76,6 +76,11 @@ typedef struct allArpInfo{
     arp_info client[ARP_MAX_CLIENTS_NUMBER];
 }all_arp_info;
 
+typedef struct ipList{
+    uint32_t ip4_addr;
+    struct ipList *next;
+}ip_list;
+
 static all_arp_info client_arp_info;
 
 /* Convert from 00:AA:00:BB:00:CC to 00AA00BB00CC
@@ -523,6 +528,8 @@ int main(int argc, char **argv)
     int auth_check_ret;
     char temp_buf[256];
     struct in_addr gw_addr, ip_addr;
+    ip_list *remove_list=NULL;
+    ip_list *temp_list=NULL;
 
     if(access(SHARE_MEM_FLAG, F_OK)==0)
         attachExisting=true;
@@ -740,6 +747,13 @@ int main(int argc, char **argv)
 
                     if(shm_ptr->client[i].detec_leave>=NO_ARP_TIMES)
                     {
+                        temp_list=malloc(sizeof(ip_list));
+                        if(temp_list)
+                        {
+                            temp_list->ip4_addr=shm_ptr->client[i].ip4_addr;
+                            temp_list->next=remove_list;
+                            remove_list=temp_list;
+                        }
                         main_function_debug("client ip=%X is timeout client_num=%d", shm_ptr->client[i].ip4_addr, shm_ptr->client_num);
                         if(shm_ptr->client_num<MAX_CLIENTS_NUMBER)
                             memmove(&(shm_ptr->client[i]), &(shm_ptr->client[i+1]), sizeof(client_info));
@@ -750,6 +764,43 @@ int main(int argc, char **argv)
                 }
             }
             sem_unlock();
+        }
+        /*delete firewall rule*/
+        while(remove_list)
+        {
+           temp_list=remove_list;
+           remove_list=remove_list->next;
+           
+            ip_addr.s_addr=htonl(temp_list->ip4_addr);
+            sprintf(temp_buf, DELETE_ALLOW_RULE_FORMAT, inet_ntoa(ip_addr));
+            system(temp_buf);
+            if(bridge_ipaddr_valid==false)
+            {
+                if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
+                {
+                    bridge_ipaddr_valid=true;
+                    strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
+                }
+                else
+                {/*try again*/
+                    if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
+                    {
+                        bridge_ipaddr_valid=true;
+                        strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
+                    }
+                    else
+                    {
+                        clatdm_error("try get bridge ipaddr fail");
+                    }
+                }
+            }
+            if(bridge_ipaddr_valid)
+            {
+                sprintf(temp_buf, DELETE_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), bridge_ipaddr);
+                system(temp_buf);
+            }
+            free(temp_list);
+            temp_list=NULL;
         }
     }
     shm_mem_detach(ptr);
