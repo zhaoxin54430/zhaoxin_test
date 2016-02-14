@@ -857,10 +857,25 @@ static char *uh_handle_alias(char *old_url)
 	return old_url;
 }
 
+static void uh_output_200_OK(struct client *cl)
+{
+    cl->request.disable_chunked = true;
+    cl->request.connection_close = true;
+    uh_http_header(cl, 200, "OK");
+    ustream_printf(cl->us, "Content-Length: 0\r\n");
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"pragma\" CONTENT=\"no-cache\">\r\n"); 
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"Cache-Control\" CONTENT=\"no-store, must-revalidate\">\r\n"); 
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"Wed, 26 Feb 1997 08:21:57 GMT\">\r\n");
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"0\">\r\n");
+    ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
+    uh_request_done(cl);
+}
+
+
 static void uh_output_redirect(struct client *cl)
 {
-#if 1
-    char *redirect_str="<html><head><title></title><script>(function(){window.location.href= \"http://192.168.1.1/connet/con_inet_auth.html\";})();</script></head><body></body></html>";
+#if 0
+    char *redirect_str="<html><head><title></title><script>(function(){window.location.href= \"http://192.168.1.1/connect/con_inet_auth.html\";})();</script></head><body></body></html>";
     cl->request.disable_chunked = true;
     cl->request.connection_close = true;
     uh_http_header(cl, 200, "OK");
@@ -873,7 +888,7 @@ static void uh_output_redirect(struct client *cl)
     ustream_printf(cl->us, redirect_str);
     uh_request_done(cl);
 #endif
-#if 0
+#if 1
     cl->request.disable_chunked = true;
     cl->request.connection_close = true;
     uh_http_header(cl, 302, "Found");
@@ -882,7 +897,7 @@ static void uh_output_redirect(struct client *cl)
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"Cache-Control\" CONTENT=\"no-store, must-revalidate\">\r\n"); 
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"Wed, 26 Feb 1997 08:21:57 GMT\">\r\n");
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"0\">\r\n");
-    ustream_printf(cl->us, "Location: http://%s/connet/con_inet_auth.html\r\n\r\n",inet_ntoa(cl->srv_addr.in));
+    ustream_printf(cl->us, "Location: http://%s/connect/con_inet_auth.html\r\n\r\n",inet_ntoa(cl->srv_addr.in));
     uh_request_done(cl);
 #endif
 #if 0
@@ -890,23 +905,24 @@ static void uh_output_redirect(struct client *cl)
     cl->request.connection_close = true;
     uh_http_header(cl, 302, "Found");
     ustream_printf(cl->us, "Content-Length: 0\r\n");
-    ustream_printf(cl->us, "Location: http://%s/connet/con_inet_auth.html\r\n\r\n",inet_ntoa(cl->srv_addr.in));
+    ustream_printf(cl->us, "Location: http://%s/connect/con_inet_auth.html\r\n\r\n",inet_ntoa(cl->srv_addr.in));
     uh_request_done(cl);
 #endif    
 }
 
 
-static bool uh_set_auth_status(struct client *cl)
+static int uh_set_auth_status(struct client *cl, int *isChange)
 {
     int i=0;
     struct timespec time = {0, 0};
     unsigned int addr_int;
-    bool isChange=false;
+    int found=0;
 
-    if((cl->peer_addr.family!=AF_INET)||(shm_ptr==NULL))
+    if((cl->peer_addr.family!=AF_INET)||(shm_ptr==NULL)||(isChange==NULL))
     {
-        return false;
+        return -1;
     }
+    *isChange=0;
     addr_int=ntohl(cl->peer_addr.in.s_addr);
     clock_gettime(CLOCK_MONOTONIC, &time);
     
@@ -915,17 +931,18 @@ static bool uh_set_auth_status(struct client *cl)
     {
         if(shm_ptr->client[i].ip4_addr==addr_int)
         {
+            found=1;
             if((shm_ptr->client[i].status==REDIRECT_RULE))
             {
-                shm_ptr->client[i].status=HTTP_SEND_AUTH;
+                shm_ptr->client[i].status=ADD_ALLOW_RULE;
                 shm_ptr->client[i].time_out=time.tv_sec+CHECK_AUTH_TIMEOUT;
-                isChange=true;
+                *isChange=1;
             }
             break;
         }
     }
     sem_unlock();
-    return isChange;
+    return found;
 }
 void uh_handle_request(struct client *cl)
 {
@@ -934,7 +951,8 @@ void uh_handle_request(struct client *cl)
 	char *url = blobmsg_data(blob_data(cl->hdr.head));
 	char *error_handler;
 	char buf[256];
-  char ip_buf[32];
+	char ip_buf[32];
+	int isChange=0;
 
 	url = uh_handle_alias(url);
 
@@ -944,15 +962,25 @@ void uh_handle_request(struct client *cl)
 
 	req->redirect_status = 200;
 	
-    if(strstr(url, CON_AUTH_PATH))
-    {
-        if(uh_set_auth_status(cl))
+    if(strstr(url, REQUEST_CON_TOKEN))
+    {   
+        if(uh_set_auth_status(cl, &isChange)==1)
         {
-            strcpy(ip_buf, inet_ntoa(cl->peer_addr.in));
-            sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, ip_buf, inet_ntoa(cl->srv_addr.in));      
-            system(buf);
-            sprintf(buf, ADD_ALLOW_RULE_FORMAT, ip_buf);
-            system(buf);
+            if(isChange==1)
+            {
+                strcpy(ip_buf, inet_ntoa(cl->peer_addr.in));
+                sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, ip_buf, inet_ntoa(cl->srv_addr.in));      
+                system(buf);
+                sprintf(buf, ADD_ALLOW_RULE_FORMAT, ip_buf);
+                system(buf);
+            }
+            uh_output_200_OK(cl);
+            return ;
+        }
+        else if(uh_set_auth_status(cl, &isChange)==0) //not find client in share memory
+        {
+            uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            return ;
         }
     }
     else if(ntohl(cl->srv_addr.in.s_addr)!= req->host_ip )

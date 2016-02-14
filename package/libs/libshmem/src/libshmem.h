@@ -9,7 +9,7 @@
 #define BRIDGE_NAME "br-lan"
 #define ADD_REDIRECT_RULE_FORMAT  "iptables -t nat -A prerouting_lan_rule -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
 #define DELETE_REDIRECT_RULE_FORMAT  "iptables -t nat -D prerouting_lan_rule -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
-#define ADD_ALLOW_RULE_FORMAT  "iptables -t filter -I forwarding_lan_rule 1 -s %s -j ACCEPT"
+#define ADD_ALLOW_RULE_FORMAT  "iptables -t filter -A forwarding_lan_rule -s %s -j ACCEPT"
 #define DELETE_ALLOW_RULE_FORMAT  "iptables -t filter -D forwarding_lan_rule -s %s -j ACCEPT"
 //#define CLIENT_RECORD_RELEASE_TIME
 #define CHECK_AUTH_TIMEOUT  180  //seconds
@@ -30,7 +30,6 @@ typedef enum
 typedef enum
 {
     REDIRECT_RULE    = 1, /*client request ip successful, and had added redirect rule to firewall*/
-    HTTP_SEND_AUTH , /*uhttpd had sended auth paage to client*/
     ADD_ALLOW_RULE , /*user had click the 'connect' button, router had add allow rule for the client*/
     AUTH_SUCCESSFUL , /*client had auth successful*/
 }client_status;
@@ -40,7 +39,7 @@ typedef struct clientInfo{
     char detec_leave;
     uint32_t ip4_addr;
     client_status status;
-    time_t time_out;/*the time for HTTP_SEND_AUTH or AUTH_SUCCESSFUL status*/
+    time_t time_out;/*the time for ADD_ALLOW_RULE or AUTH_SUCCESSFUL status*/
 #ifdef CLIENT_RECORD_RELEASE_TIME    
     time_t release_time;/*accept the client's release request time*/
 #endif

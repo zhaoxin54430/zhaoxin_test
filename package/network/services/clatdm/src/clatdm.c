@@ -47,7 +47,6 @@
 #define CLATDM_AUTH_CHECK_TIMES 3
 #define BRIDGE_INTERFACE_NAME "br-lan"
 #define ARP_MAX_CLIENTS_NUMBER (2*MAX_CLIENTS_NUMBER)
-#define TRIGGER_AUTH_CHECK_STATUS  HTTP_SEND_AUTH
 
 all_client_info *shm_ptr=NULL;
 static bool wan_hwaddr_valid=false;
@@ -497,7 +496,7 @@ int clatdm_auth_check(client_info *client)
         sem_lock();
         for(i=0; i<shm_ptr->client_num; i++)
         {   //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
-            if((shm_ptr->client[i].status==HTTP_SEND_AUTH)&&
+            if((shm_ptr->client[i].status==ADD_ALLOW_RULE)&&
                 (client->ip4_addr==shm_ptr->client[i].ip4_addr)&&
                 (memcmp(shm_ptr->client[i].mac_addr, client->mac_addr, 6)==0))
             {
@@ -638,7 +637,7 @@ int main(int argc, char **argv)
                 sem_lock();
                 for(i=0; i<shm_ptr->client_num; i++)
                 {   //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
-                    if((shm_ptr->client[i].status==HTTP_SEND_AUTH)&&
+                    if((shm_ptr->client[i].status==ADD_ALLOW_RULE)&&
                         (client.ip4_addr==shm_ptr->client[i].ip4_addr)&&
                         (memcmp(shm_ptr->client[i].mac_addr, client.mac_addr, 6)==0))
                     {
@@ -694,7 +693,7 @@ int main(int argc, char **argv)
         sem_lock();
         for(i=0; i<shm_ptr->client_num; i++)
         {
-            if((shm_ptr->client[i].status==HTTP_SEND_AUTH)&&(shm_ptr->client[i].time_out>0)) //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
+            if((shm_ptr->client[i].status==ADD_ALLOW_RULE)&&(shm_ptr->client[i].time_out>0)) //!!!!!!ADD_ALLOW_RULE!!!!!!!!!
             {
                 if(shm_ptr->client[i].time_out>now_time.tv_sec)
                 {

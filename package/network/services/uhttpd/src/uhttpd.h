@@ -41,7 +41,8 @@
 #include "utils.h"
 
 #define UH_LIMIT_CLIENTS	64
-#define CON_AUTH_PATH "con_inet_auth.html"
+#define CON_AUTH_PAGE "con_inet_auth.html"
+#define REQUEST_CON_TOKEN "request_connect_allow"
 //#define ENABLE_MYUHTTPD_SYSLOG
 #if 0
 #ifdef ENABLE_MYUHTTPD_SYSLOG
