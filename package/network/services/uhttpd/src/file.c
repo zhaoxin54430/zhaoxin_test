@@ -891,7 +891,11 @@ static void uh_output_redirect(struct client *cl)
 #if 1
     cl->request.disable_chunked = true;
     cl->request.connection_close = true;
-    uh_http_header(cl, 302, "Found");
+//    uh_http_header(cl, 302, "Found");
+    if(cl->request.version==UH_HTTP_VER_1_0)
+        uh_http_header(cl, 302, "Moved Temporatily");
+    else //UH_HTTP_VER_1_1 ignore UH_HTTP_VER_0_9
+        uh_http_header(cl, 303, "See Other");
     ustream_printf(cl->us, "Content-Length: 0\r\n");
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"pragma\" CONTENT=\"no-cache\">\r\n"); 
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"Cache-Control\" CONTENT=\"no-store, must-revalidate\">\r\n"); 
@@ -952,7 +956,7 @@ void uh_handle_request(struct client *cl)
 	char *error_handler;
 	char buf[256];
 	char ip_buf[32];
-	int isChange=0;
+	int isChange=0, found=0;;
 
 	url = uh_handle_alias(url);
 
@@ -964,7 +968,8 @@ void uh_handle_request(struct client *cl)
 	
     if(strstr(url, REQUEST_CON_TOKEN))
     {   
-        if(uh_set_auth_status(cl, &isChange)==1)
+        found=uh_set_auth_status(cl, &isChange);
+        if(found==1)
         {
             if(isChange==1)
             {
@@ -977,7 +982,7 @@ void uh_handle_request(struct client *cl)
             uh_output_200_OK(cl);
             return ;
         }
-        else if(uh_set_auth_status(cl, &isChange)==0) //not find client in share memory
+        else if(found==0) //not find client in share memory
         {
             uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
             return ;
