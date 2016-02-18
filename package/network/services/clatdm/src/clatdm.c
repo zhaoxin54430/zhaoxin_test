@@ -36,7 +36,8 @@
 #include "clatdm.h"
 #include "others.h"
 
-#define AUTH_SUCCESS_TIMEOUT  43200 //seconds 12 hours
+#define AUTH_SUCCESS_TIMEOUT  86400 //seconds 24 hours
+#define DETECT_AUTH_SUCCESS_TIMEOUT_INTERVAL 3600 //1 hours
 #define WAN_INTERFACE_NAME "eth0.2"
 #define CURL_PERFORM_TIMEOUT 40 //seconds
 #define CURL_DNS_CACHE_TIMEOUT 14400 //seconds
@@ -239,6 +240,36 @@ bool get_wan_hwaddr(unsigned char *wan_hwaddr)
     }
     close(fd);
     return success;
+}
+bool get_bridge_ip(void)
+{
+    struct in_addr gw_addr;
+    
+    if(bridge_ipaddr_valid==false)
+    {
+        if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
+        {
+            bridge_ipaddr_valid=true;
+            strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
+            return true;
+        }
+        else
+        {/*try again*/
+            if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
+            {
+                bridge_ipaddr_valid=true;
+                strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
+                return true;
+            }
+            else
+            {
+                clatdm_error("try get bridge ipaddr fail");
+                return false;
+            }
+        }
+    }
+    else
+        return true;
 }
 
 void curl_init(void)
@@ -521,13 +552,13 @@ int main(int argc, char **argv)
     CURLcode res;
     struct timeval delay = {0, 0};
     struct timespec now_time = {0, 0};
-    time_t interval_sec=0, next_detect_time=0;
+    time_t interval_sec=0, next_detect_time=0, next_s_timeout_detect_time=0;
     char detect_leave_times=0;
     bool arp_found=false;
     int auth_check_ret;
     char temp_buf[256];
     struct in_addr gw_addr, ip_addr;
-    ip_list *remove_list=NULL;
+    ip_list *remove_list=NULL, *reset_list=NULL;
     ip_list *temp_list=NULL;
 
     if(access(SHARE_MEM_FLAG, F_OK)==0)
@@ -625,6 +656,7 @@ int main(int argc, char **argv)
 
     clock_gettime(CLOCK_MONOTONIC, &now_time);
     next_detect_time=now_time.tv_sec+DETECT_LEAVE_INTERVAL;
+    next_s_timeout_detect_time=now_time.tv_sec+DETECT_AUTH_SUCCESS_TIMEOUT_INTERVAL;
     client.ip4_addr=0;
     while(true)
     {
@@ -660,23 +692,7 @@ int main(int argc, char **argv)
 
                 if(bridge_ipaddr_valid==false)
                 {
-                    if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
-                    {
-                        bridge_ipaddr_valid=true;
-                        strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
-                    }
-                    else
-                    {/*try again*/
-                        if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
-                        {
-                            bridge_ipaddr_valid=true;
-                            strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
-                        }
-                        else
-                        {
-                            clatdm_error("try get bridge ipaddr fail");
-                        }
-                    }
+                    get_bridge_ip();
                 }
                 if(bridge_ipaddr_valid)
                 {
@@ -775,27 +791,60 @@ int main(int argc, char **argv)
             system(temp_buf);
             if(bridge_ipaddr_valid==false)
             {
-                if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
-                {
-                    bridge_ipaddr_valid=true;
-                    strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
-                }
-                else
-                {/*try again*/
-                    if(get_ifaddr(BRIDGE_INTERFACE_NAME, &gw_addr))
-                    {
-                        bridge_ipaddr_valid=true;
-                        strcpy(bridge_ipaddr, inet_ntoa(gw_addr));
-                    }
-                    else
-                    {
-                        clatdm_error("try get bridge ipaddr fail");
-                    }
-                }
+                get_bridge_ip();
             }
             if(bridge_ipaddr_valid)
             {
                 sprintf(temp_buf, DELETE_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), bridge_ipaddr);
+                system(temp_buf);
+            }
+            free(temp_list);
+            temp_list=NULL;
+        }
+        /*process auth success timeout client*/
+        if(next_s_timeout_detect_time<=now_time.tv_sec)
+        {
+            next_s_timeout_detect_time=now_time.tv_sec+DETECT_AUTH_SUCCESS_TIMEOUT_INTERVAL;
+            sem_lock();
+            for(i=0; i<shm_ptr->client_num; i++)
+            {
+                if((shm_ptr->client[i].status==AUTH_SUCCESSFUL)&&
+                    ((shm_ptr->client[i].time_out+AUTH_SUCCESS_TIMEOUT)<=now_time.tv_sec))
+                {
+                    temp_list=malloc(sizeof(ip_list));
+                    if(temp_list)
+                    {
+                        temp_list->ip4_addr=shm_ptr->client[i].ip4_addr;
+                        temp_list->next=reset_list;
+                        reset_list=temp_list;
+#ifdef CLIENT_RECORD_RELEASE_TIME                
+                        shm_ptr->client[i].release_time=0;
+#endif
+                        shm_ptr->client[i].status=REDIRECT_RULE;
+                        shm_ptr->client[i].time_out=0;
+                        shm_ptr->client[i].detec_leave=0;
+                    }
+                    main_function_debug("client ip=%X is reset to inital status client_num=%d", shm_ptr->client[i].ip4_addr, shm_ptr->client_num);
+                }
+            }
+            sem_unlock();
+        }
+        /*reset firewall rule*/
+        while(reset_list)
+        {
+           temp_list=reset_list;
+           reset_list=reset_list->next;
+           
+            ip_addr.s_addr=htonl(temp_list->ip4_addr);
+            sprintf(temp_buf, DELETE_ALLOW_RULE_FORMAT, inet_ntoa(ip_addr));
+            system(temp_buf);
+            if(bridge_ipaddr_valid==false)
+            {
+                get_bridge_ip();
+            }
+            if(bridge_ipaddr_valid)
+            {
+                sprintf(temp_buf, ADD_REDIRECT_RULE_FORMAT, inet_ntoa(ip_addr), bridge_ipaddr);
                 system(temp_buf);
             }
             free(temp_list);
