@@ -38,6 +38,7 @@ static void init_firewall(void);
 all_client_info *shm_ptr=NULL;
 char output_dnsmasq_shmem_log=0;
 static void shmem_init();
+static void clatdm_wanup_notify(void);
 
 int main (int argc, char **argv)
 {
@@ -1438,6 +1439,7 @@ static void poll_resolv(int force, int do_reload, time_t now)
 	{
 	  my_syslog(LOG_INFO, _("reading %s"), latest->name);
 	  warned = 0;
+	  clatdm_wanup_notify();
 	  check_servers();
 	  if (option_bool(OPT_RELOAD) && do_reload)
 	    clear_cache_and_reload(now);
@@ -1914,4 +1916,23 @@ static void init_firewall(void)
     system("iptables -t filter -A forwarding_lan_rule -j DROP");
 }
 #endif
+static void clatdm_wanup_notify(void)
+{
+    FILE *pid_file=NULL;
+    int pid=0x7FFFFFEE;
+    
+    pid_file=fopen(CLATDM_PID_FILE,"r");
+    if(pid_file==NULL)
+    {
+        my_syslog(MS_DHCP | LOG_INFO, "clatdm_wanup_notify open file failed");
+    }
+    else
+    {
+        if(1 == fscanf(pid_file, "%d", &pid))
+        {
+            kill(pid, SIGUSR1);
+        }
+        fclose(pid_file);
+    }
+}
 

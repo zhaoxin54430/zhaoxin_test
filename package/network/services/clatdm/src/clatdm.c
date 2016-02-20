@@ -28,6 +28,7 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <sys/ioctl.h>
+#include <netdb.h>
 #include <net/if.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -48,6 +49,8 @@
 #define CLATDM_AUTH_CHECK_TIMES 3
 #define BRIDGE_INTERFACE_NAME "br-lan"
 #define ARP_MAX_CLIENTS_NUMBER (2*MAX_CLIENTS_NUMBER)
+#define ADD_PRESERVE_DOMAIN_FLAG "/tmp/add_preserve_domain"
+#define ADD_PRESERVE_DOMAIN_RULE_FORMAT  "iptables -t nat -I prerouting_lan_rule 1 -d %s -j ACCEPT"
 
 all_client_info *shm_ptr=NULL;
 static bool wan_hwaddr_valid=false;
@@ -80,6 +83,19 @@ typedef struct ipList{
     uint32_t ip4_addr;
     struct ipList *next;
 }ip_list;
+#ifdef DOMAIN_WHITE_LIST
+typedef struct preserveDomain{
+    char *name;
+    char status;
+    char try_times;
+}preserve_domain;
+
+static preserve_domain domain[]={
+    {"uc.ucweb.com", 0, 0},
+    {NULL, 0, 0},
+};
+static ip_list *preserve_ip_list=NULL;
+#endif
 
 static all_arp_info client_arp_info;
 
@@ -541,12 +557,101 @@ int clatdm_auth_check(client_info *client)
         
     return -1;
 }
+bool access_internet()
+{
+    if(gethostbyname("baidu.com") != NULL)
+    {
+        return true;
+    }
+    return false;
+}
+static void sigHandler_user(int signo)
+{
+    main_function_debug("recv signal %d", signo);
+}
+#ifdef DOMAIN_WHITE_LIST
+void add_preserve_domain_rule(void)
+{
+    int i=-1, processed=0;
+    char found=0;
+    char   **pptr;
+    struct hostent *hptr;
+    FILE *flag_file=NULL;
+    ip_list *temp_list=NULL;
+    char ip_str[32], cmd_buf[128];
+    uint32_t ip4_addr;
+    
+    while(domain[++i].name)
+    {
+        if((domain[i].status==1)||(domain[i].try_times>=2))
+        {
+            continue;
+        }
+        processed=1;
+        if((hptr = gethostbyname(domain[i].name)) == NULL)
+        {
+            domain[i].try_times++;
+            continue;
+        }
+        domain[i].status=1;
+        if(hptr->h_addrtype==AF_INET)
+        {
+            pptr=hptr->h_addr_list;
+            for(; *pptr!=NULL; pptr++)
+            {
+                memcpy(&ip4_addr, *pptr, 4);
+                /*check if the addr had existed */
+                temp_list=preserve_ip_list;
+                found=0;
+                while(temp_list)
+                {
+                    if(temp_list->ip4_addr==ip4_addr)
+                    {
+                        found=1;
+                        break;
+                    }
+                    temp_list=temp_list->next;
+                }
+                if(found==1)
+                    continue;
+                    
+                temp_list=malloc(sizeof(ip_list));
+                if(temp_list)
+                {
+                    temp_list->ip4_addr=ip4_addr;
+                    temp_list->next=preserve_ip_list;
+                    preserve_ip_list=temp_list;
+                }
+                if(inet_ntop(AF_INET, *pptr, ip_str, sizeof(ip_str)))
+                {
+                    sprintf(cmd_buf, ADD_PRESERVE_DOMAIN_RULE_FORMAT, ip_str);
+                    system(cmd_buf);
+                }
+            }
+        }
+    }
+    /*loop and do noting, so all domain had requested*/
+    if(processed==0)
+    {
+        flag_file=fopen(ADD_PRESERVE_DOMAIN_FLAG,"w+");
+        if(flag_file==NULL)
+        {
+            clatdm_error("open"ADD_PRESERVE_DOMAIN_FLAG"failed");
+        }
+        else
+        {
+            fclose(flag_file);
+        }
+    }
+    
+}
+#endif
 int main(int argc, char **argv)
 {  
     void *ptr=NULL;
     client_info client;
     char attachExisting=false;
-    FILE *flag_file=NULL;
+    FILE *flag_file=NULL, *pid_file=NULL;
     int i=0, k=0;
     time_t temp_time=0;
     CURLcode res;
@@ -653,7 +758,19 @@ int main(int argc, char **argv)
         curl_global_cleanup();
         goto quit_mem;
     }
-
+    signal(SIGUSR1, sigHandler_user);
+#ifdef DOMAIN_WHITE_LIST
+    pid_file=fopen(CLATDM_PID_FILE,"w");
+    if(pid_file==NULL)
+    {
+        clatdm_error("open"CLATDM_PID_FILE"failed");
+    }
+    else
+    {
+        fprintf(pid_file, "%d", getpid());
+        fclose(pid_file);
+    }
+#endif
     clock_gettime(CLOCK_MONOTONIC, &now_time);
     next_detect_time=now_time.tv_sec+DETECT_LEAVE_INTERVAL;
     next_s_timeout_detect_time=now_time.tv_sec+DETECT_AUTH_SUCCESS_TIMEOUT_INTERVAL;
@@ -733,7 +850,18 @@ int main(int argc, char **argv)
         if(delay.tv_sec !=0)
         { /*sleep*/
             delay.tv_usec = 0;
+#ifdef DOMAIN_WHITE_LIST
+            if((select(0, NULL, NULL, NULL, &delay)== -1) && (errno == EINTR))
+            {
+                signal(SIGUSR1, SIG_IGN);
+                delay.tv_sec=10;
+                delay.tv_usec = 0;
+                select(0, NULL, NULL, NULL, &delay);
+                signal(SIGUSR1, sigHandler_user);
+            }
+#else
             select(0, NULL, NULL, NULL, &delay);
+#endif            
         }
         /*process time out client*/
         clock_gettime(CLOCK_MONOTONIC, &now_time);
@@ -850,6 +978,17 @@ int main(int argc, char **argv)
             free(temp_list);
             temp_list=NULL;
         }
+#ifdef DOMAIN_WHITE_LIST
+        if(access(ADD_PRESERVE_DOMAIN_FLAG, F_OK)!=0)
+        {/*add domain rule*/
+            if(access_internet())
+                add_preserve_domain_rule();
+            else
+            {
+                main_function_debug("can't access internet:%s", hstrerror(h_errno));
+            }
+        }
+#endif
     }
     shm_mem_detach(ptr);
     shm_ptr=NULL;
