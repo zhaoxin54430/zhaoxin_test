@@ -92,6 +92,10 @@ typedef struct preserveDomain{
 
 static preserve_domain domain[]={
     {"uc.ucweb.com", 0, 0},
+    {"u.uc123.com", 0, 0},
+    {"applog.uc.cn", 0, 0},
+    {"u.ucfly.com", 0, 0},
+    {"vs22.gzct.u3.ucweb.com", 0, 0},
     {NULL, 0, 0},
 };
 static ip_list *preserve_ip_list=NULL;
