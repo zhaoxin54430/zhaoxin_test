@@ -34,8 +34,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <curl/curl.h>
+#include <others.h>
 #include "clatdm.h"
-#include "others.h"
 
 #define AUTH_SUCCESS_TIMEOUT  86400 //seconds 24 hours
 #define DETECT_AUTH_SUCCESS_TIMEOUT_INTERVAL 3600 //1 hours

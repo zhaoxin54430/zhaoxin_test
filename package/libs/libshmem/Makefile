@@ -49,6 +49,7 @@ define Build/InstallDev
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/libshmem.so $(1)/usr/lib/
 	$(INSTALL_DIR) $(1)/usr/include
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/libshmem.h $(1)/usr/include/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/others.h $(1)/usr/include/
 endef
 
 define Package/libshmem/install
