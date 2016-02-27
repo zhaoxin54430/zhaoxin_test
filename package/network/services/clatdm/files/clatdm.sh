@@ -38,8 +38,6 @@ start_service() {
 		}
 	}
 
-	/bin/noeat
-	
 	procd_open_instance
 	procd_set_param command /bin/clatdm
 	procd_set_param respawn

@@ -3,5 +3,10 @@
 
 START=11
 start() {
+
+	[ -f "/bin/noeat" ] && {
+		/bin/noeat
+	}
+	
 	[ -f /etc/sysctl.conf ] && sysctl -p -e >&-
 }
