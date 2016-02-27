@@ -499,7 +499,7 @@ int clatdm_auth_check(client_info *client)
         }
         
     }
-    sprintf(buf, "auth=%02X%02X%02X%02X%02X%02X%08X%02X%02X%02X%02X%02X%02X", 
+    sprintf(buf, "auth=%02x%02x%02x%02x%02x%02x%08x%02x%02x%02x%02x%02x%02x", 
                                 wan_hwaddr[0], wan_hwaddr[1], wan_hwaddr[2],
                                 wan_hwaddr[3], wan_hwaddr[4], wan_hwaddr[5],
                                 client->ip4_addr, 
