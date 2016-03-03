@@ -893,9 +893,9 @@ static void uh_output_redirect(struct client *cl)
     cl->request.connection_close = true;
 //    uh_http_header(cl, 302, "Found");
     if(cl->request.version==UH_HTTP_VER_1_0)
-        uh_http_header(cl, 302, "Moved Temporatily");
+        uh_http_header(cl, 302, "Moved Temporarily");
     else //UH_HTTP_VER_1_1 ignore UH_HTTP_VER_0_9
-        uh_http_header(cl, 303, "See Other");
+        uh_http_header(cl, 302, "Found");
     ustream_printf(cl->us, "Content-Length: 0\r\n");
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"pragma\" CONTENT=\"no-cache\">\r\n"); 
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"Cache-Control\" CONTENT=\"no-store, must-revalidate\">\r\n"); 
