@@ -39,7 +39,7 @@ start_service() {
 	}
 	
   iptables -nvL FORWARD | grep -q '#conn' || {
-          iptables -I FORWARD 1 -p tcp -m connlimit --connlimit-above 128 -j REJECT
+          iptables -I FORWARD 1 -p tcp -m connlimit --connlimit-above 128 -j DROP
   }
   
 	procd_open_instance
