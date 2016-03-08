@@ -11,8 +11,14 @@
 		<h2><a id="content" name="content"><%:Authorization Required%></a></h2>
 		<div class="cbi-map-descr">
 			<%:Please enter your username and password.%>
+			<br />
+			<div class="error"><%:Maximum failed retry count is 10%></div>
 			<%- if fuser then %>
 			<div class="error"><%:Invalid username and/or password! Please try again.%></div>
+			<br />
+			<% end -%>
+			<%- if maxTimes then %>
+			<div class="error"><%:Login retry count exceeded, Please wait 12 hours and try again or reboot router%></div>
 			<br />
 			<% end -%>
 		</div>
@@ -20,7 +26,7 @@
 			<div class="cbi-value">
 				<label class="cbi-value-title"><%:Username%></label>
 				<div class="cbi-value-field">
-					<input class="cbi-input-user" type="text" name="luci_username" value="<%=duser%>" />
+					<input class="cbi-input-user" type="text" name="luci_username" value="admin" />
 				</div>
 			</div>
 			<div class="cbi-value cbi-value-last">

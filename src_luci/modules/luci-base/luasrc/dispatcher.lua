@@ -104,11 +104,62 @@ function error500(message)
 	return false
 end
 
+function loginWebWriteFile(file, value)  
+    os.execute("echo %s > %s" %{value , file} )
+end  
+  
+function loginWebReadFile(file)  
+    local ret = 0
+    if fs.access(file) then  
+        ret = (tonumber(fs.readfile(file)))
+        if ret then
+            return ret
+        else
+            return 0
+        end
+    else   
+        return 0  
+    end  
+end
+
 function authenticator.htmlauth(validator, accs, default)
 	local user = http.formvalue("luci_username")
 	local pass = http.formvalue("luci_password")
+	local fail_count = 0
+	local fail_time = 0
+	local curTime = 0
+	local forbidenLogin = false
+	local e_file = "/tmp/loginWebErrCount"
+	local t_file = "/tmp/loginWebForbidenTime"
 
+	fail_count = loginWebReadFile(e_file)
+	if fail_count > 10 then
+		fail_time = loginWebReadFile(t_file)
+		curTime = nixio.sysinfo().uptime
+		if fail_time == 0 then
+			loginWebWriteFile(t_file, curTime)
+			forbidenLogin = true
+		else
+			if curTime - fail_time >= 43200 then
+				loginWebWriteFile(t_file, 0)
+				loginWebWriteFile(e_file, 0)
+			else
+				forbidenLogin = true
+			end
+		end
+	end
+        if forbidenLogin then
+		require("luci.i18n")
+		require("luci.template")
+		context.path = {}
+		http.status(403, "Forbidden")
+		luci.template.render("sysauth", {duser=default, maxTimes=1})
+        return false
+	end
+	
 	if user and validator(user, pass) then
+		loginWebWriteFile(t_file, 0)
+		loginWebWriteFile(e_file, 0)
 		return user
 	end
 
@@ -124,6 +175,10 @@ function authenticator.htmlauth(validator, accs, default)
 		http.header("Set-Cookie", cookie)
 		http.redirect(build_url())
 	else
+		fail_count = loginWebReadFile(e_file)
+		fail_count = fail_count + 1
+		loginWebWriteFile(e_file, fail_count)
+		
 		require("luci.i18n")
 		require("luci.template")
 		context.path = {}
