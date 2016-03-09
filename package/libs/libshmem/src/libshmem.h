@@ -13,6 +13,7 @@
 #define DELETE_ALLOW_RULE_FORMAT  "iptables -t filter -D forwarding_lan_rule -s %s -j ACCEPT"
 //#define CLIENT_RECORD_RELEASE_TIME
 #define CHECK_AUTH_TIMEOUT  180  //seconds
+//#define DOMAIN_WHITE_LIST
 #define CLATDM_PID_FILE "/tmp/clatdm_pid"
 
 

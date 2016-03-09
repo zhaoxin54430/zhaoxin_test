@@ -5,7 +5,6 @@
 
 #define CLATDM_OUTPUT_TO_SYSLOG
 #define SHARE_MEM_FLAG "/tmp/sharemem_flag"
-//#define DOMAIN_WHITE_LIST
 
 #ifdef CLATDM_OUTPUT_TO_SYSLOG
 #define clatdm_error(args...) syslog(LOG_ERR, args)

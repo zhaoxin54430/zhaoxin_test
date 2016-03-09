@@ -38,7 +38,9 @@ static void init_firewall(void);
 all_client_info *shm_ptr=NULL;
 char output_dnsmasq_shmem_log=0;
 static void shmem_init();
+#ifdef DOMAIN_WHITE_LIST
 static void clatdm_wanup_notify(void);
+#endif
 
 int main (int argc, char **argv)
 {
@@ -1439,7 +1441,9 @@ static void poll_resolv(int force, int do_reload, time_t now)
 	{
 	  my_syslog(LOG_INFO, _("reading %s"), latest->name);
 	  warned = 0;
+#ifdef DOMAIN_WHITE_LIST	  
 	  clatdm_wanup_notify();
+#endif	  
 	  check_servers();
 	  if (option_bool(OPT_RELOAD) && do_reload)
 	    clear_cache_and_reload(now);
@@ -1916,6 +1920,7 @@ static void init_firewall(void)
     system("iptables -t filter -A forwarding_lan_rule -j DROP");
 }
 #endif
+#ifdef DOMAIN_WHITE_LIST
 static void clatdm_wanup_notify(void)
 {
     FILE *pid_file=NULL;
@@ -1935,4 +1940,5 @@ static void clatdm_wanup_notify(void)
         fclose(pid_file);
     }
 }
+#endif
 
