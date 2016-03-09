@@ -37,7 +37,7 @@ function index()
 
 	--entry({"admin", "system", "reboot"}, call("action_reboot"), _("Reboot"), 90)
 end
-
+	--[[
 function action_clock_status()
 	local set = tonumber(luci.http.formvalue("set"))
 	if set ~= nil and set > 0 then
@@ -166,7 +166,7 @@ function action_packages()
 		fs.unlink("/tmp/luci-indexcache")
 	end
 end
-
+	]]--
 function action_flashops()
 	local sys = require "luci.sys"
 	local fs  = require "nixio.fs"
