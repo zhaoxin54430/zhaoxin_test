@@ -8,8 +8,8 @@ local fs = require "nixio.fs"
 
 function index()
 
-	entry({"admin", "averageotherrequirement"}, alias("admin", "averageotherrequirement", "essentialfiles"), _("hide1"), 70).index = true
-	entry({"admin", "averageotherrequirement", "essentialfiles"}, call("action_requirement"), _("hide2"), 1)
+	entry({"admin", "averageotherrequirement"}, alias("admin", "averageotherrequirement", "essentialfiles"), _(""), 70).index = true
+	entry({"admin", "averageotherrequirement", "essentialfiles"}, call("action_requirement"), _(""), 1)
 end
 
 function upgradeReadFile(file)
