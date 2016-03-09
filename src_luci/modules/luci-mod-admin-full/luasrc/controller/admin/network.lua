@@ -395,7 +395,7 @@ end
 function wifi_shutdown(wnet)
 	wifi_reconnect_shutdown(true, wnet)
 end
-
+	--[[
 function lease_status()
 	local s = require "luci.tools.status"
 
@@ -455,3 +455,4 @@ end
 function diag_traceroute6(addr)
 	diag_command("traceroute6 -q 1 -w 2 -n %q 2>&1", addr)
 end
+	]]--

@@ -31,7 +31,7 @@ function index()
 	entry({"admin", "status", "nameinfo"}, call("action_nameinfo")).leaf = true
 	]]--
 end
-
+	--[[
 function action_syslog()
 	local syslog = luci.sys.syslog()
 	luci.template.render("admin_status/syslog", {syslog=syslog})
@@ -153,3 +153,4 @@ function action_nameinfo(...)
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(rv)
 end
+	]]--
