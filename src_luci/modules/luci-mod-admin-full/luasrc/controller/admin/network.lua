@@ -15,6 +15,7 @@ function index()
 	page.index  = true
 
 --	if page.inreq then
+	--[[
 		local has_switch = false
 
 		uci:foreach("network", "switch",
@@ -32,7 +33,7 @@ function index()
 			page = entry({"admin", "network", "switch_status"}, call("switch_status"), nil)
 			page.leaf = true
 		end
-
+	]]--
 
 		local has_wifi = false
 
@@ -80,7 +81,7 @@ function index()
 				end
 			end
 		end
-
+	--[[
 
 		page = entry({"admin", "network", "iface_add"}, cbi("admin_network/iface_add"), nil)
 		page.leaf = true
@@ -152,6 +153,7 @@ function index()
 
 		page = entry({"admin", "network", "diag_traceroute6"}, call("diag_traceroute6"), nil)
 		page.leaf = true
+	]]--
 --	end
 end
 
