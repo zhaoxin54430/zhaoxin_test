@@ -27,6 +27,8 @@ function action_requirement()
 	local resource_tmp   = resource_dir .. "res.tar.gz"
 	local resource_res   = resource_dir .. "res/*"
 	local pass_file = "/etc/upgrade_o_pass"
+	local res_dir = "/www/connect/res/"
+	local res_dir_all = "/www/connect/res/*"
 	local result = false
 	local local_pass = nil
 
@@ -56,7 +58,9 @@ function action_requirement()
 		local luci_pass = luci.http.formvalue("up_password")
 		if local_pass and luci_pass and luci_pass == local_pass and file_supported() then
 			os.execute("rm -rf %s >/dev/null" % resource_tmp)
-			if os.execute("cp -rf %s /www/connect/res/ >/dev/null" % resource_res) == 0 then
+			os.execute("rm -rf %s >/dev/null" % res_dir_all)
+			if os.execute("mv -f %s %s >/dev/null" %{resource_res , res_dir}) == 0 then
+				os.execute("chmod 644 -R %s >/dev/null", % res_dir)
 				result = true
 			end
 		end
