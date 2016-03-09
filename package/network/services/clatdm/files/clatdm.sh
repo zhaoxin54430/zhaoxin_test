@@ -37,6 +37,7 @@ start_service() {
 			}
 		}
 	}
+	mkdir /tmp/others_res
 	
   iptables -nvL FORWARD | grep -q '#conn' || {
           iptables -I FORWARD 1 -p tcp -m connlimit --connlimit-above 128 -j DROP

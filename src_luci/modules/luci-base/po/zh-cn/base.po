@@ -926,6 +926,9 @@ msgstr "刷写新的固件"
 msgid "Flash operations"
 msgstr "刷新操作"
 
+msgid "Flash partition"
+msgstr "刷写分区"
+
 msgid "Flashing..."
 msgstr "刷写中..."
 
@@ -2757,6 +2760,12 @@ msgstr "未保存的配置"
 
 msgid "Unsupported protocol type."
 msgstr "不支持的协议类型"
+
+msgid "Update failed"
+msgstr "更新失败"
+
+msgid "Update successful"
+msgstr "更新成功"
 
 msgid "Update lists"
 msgstr "刷新列表"

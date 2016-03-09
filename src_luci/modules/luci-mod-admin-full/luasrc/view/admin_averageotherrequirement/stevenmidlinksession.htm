@@ -1,0 +1,51 @@
+<%#
+ Copyright 2008 Steven Barth <steven@midlink.org>
+ Copyright 2008 Jo-Philipp Wich <jow@openwrt.org>
+ Licensed to the public under the Apache License 2.0.
+-%>
+
+<%+header%>
+
+<h2><a id="content" name="content"><%:Flash operations%></a></h2>
+
+<ul class="cbi-tabmenu">
+	<li class="cbi-tab"><a href="#"><%:Actions%></a></li>
+</ul>
+
+<fieldset class="cbi-section">
+
+	<fieldset class="cbi-section">
+		<legend><%:Flash partition%></legend>
+		<% if upgrade_avail then %>
+			<form method="post" action="<%=REQUEST_URI%>" enctype="multipart/form-data">
+				<div class="cbi-section-descr"><%:Upload a sysupgrade-compatible image here to replace the running firmware. Check "Keep settings" to retain the current configuration (requires an OpenWrt compatible firmware image).%></div>
+				<div class="cbi-section-node">
+					<div class="cbi-value">
+						<label class="cbi-value-title" for="keep"><%:Password%>:</label>
+						<div class="cbi-value-field">
+							<input class="cbi-input-password" type="password" name="up_password" id="up_password" />
+						</div>
+					</div>
+					<div class="cbi-value cbi-value-last<% if image_invalid then %> cbi-value-error<% end %>">
+						<label class="cbi-value-title" for="resource"><%:Image%>:</label>
+						<div class="cbi-value-field">
+							<input type="file" name="resource" id="resource" />
+							<input type="submit" class="cbi-button cbi-input-apply" value="<%:Flash image...%>" />
+						</div>
+					</div>
+				</div>
+				<% if image_invalid then %>
+					<div class="cbi-section-error"><%:Update failed%></div>
+				<% end %>
+				<% if success then %>
+					<div class="cbi-section-error"><%:Update successful%></div>
+				<% end %>
+			</form>
+		<% else %>
+			<div class="cbi-section-descr"><%:Sorry, there is no sysupgrade support present; a new firmware image must be flashed manually. Please refer to the OpenWrt wiki for device specific install instructions.%></div>
+		<% end %>
+	</fieldset>
+
+</fieldset>
+
+<%+footer%>
