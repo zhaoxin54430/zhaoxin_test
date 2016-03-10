@@ -44,6 +44,7 @@ function index()
 			end)
 
 		if has_wifi then
+	--[[
 			page = entry({"admin", "network", "wireless_join"}, call("wifi_join"), nil)
 			page.leaf = true
 
@@ -52,20 +53,23 @@ function index()
 
 			page = entry({"admin", "network", "wireless_delete"}, call("wifi_delete"), nil)
 			page.leaf = true
-
+	]]--
 			page = entry({"admin", "network", "wireless_status"}, call("wifi_status"), nil)
 			page.leaf = true
-
+	--[[
 			page = entry({"admin", "network", "wireless_reconnect"}, call("wifi_reconnect"), nil)
 			page.leaf = true
-
+	]]--
 			page = entry({"admin", "network", "wireless_shutdown"}, call("wifi_shutdown"), nil)
 			page.leaf = true
 
-			page = entry({"admin", "network", "wireless"}, arcombine(template("admin_network/wifi_overview"), cbi("admin_network/wifi")), _("Wifi"), 15)
+			page = entry({"admin", "network", "wireless_conf"}, cbi("admin_network/wifi_conf"), _("Wifi config"), 20)
+			page.leaf = true
+			
+			page = entry({"admin", "network", "wireless"}, template("admin_network/wifi_overview"), _("Wifi"), 15)
 			page.leaf = true
 			page.subindex = true
-
+--[[
 			if page.inreq then
 				local wdev
 				local net = require "luci.model.network".init(uci)
@@ -80,6 +84,7 @@ function index()
 					end
 				end
 			end
+]]--
 		end
 	--[[
 
@@ -156,7 +161,7 @@ function index()
 	]]--
 --	end
 end
-
+	--[[
 function wifi_join()
 	local function param(x)
 		return luci.http.formvalue(x)
@@ -231,7 +236,7 @@ function wifi_delete(network)
 
 	luci.http.redirect(luci.dispatcher.build_url("admin/network/wireless"))
 end
-
+	]]--
 function iface_status(ifaces)
 	local netm = require "luci.model.network".init()
 	local rv   = { }
@@ -387,11 +392,11 @@ local function wifi_reconnect_shutdown(shutdown, wnet)
 
 	luci.http.status(404, "No such radio")
 end
-
+	--[[
 function wifi_reconnect(wnet)
 	wifi_reconnect_shutdown(false, wnet)
 end
-
+	]]--
 function wifi_shutdown(wnet)
 	wifi_reconnect_shutdown(true, wnet)
 end

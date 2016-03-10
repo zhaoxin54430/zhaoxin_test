@@ -2940,6 +2940,9 @@ msgstr "频宽"
 msgid "Wifi"
 msgstr "无线"
 
+msgid "Wifi config"
+msgstr "无线配置"
+
 msgid "Wireless"
 msgstr "无线"
 
