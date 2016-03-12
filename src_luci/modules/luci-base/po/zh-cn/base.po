@@ -2533,6 +2533,9 @@ msgstr "bit格式的IPv4前缀长度, 其余的用在IPv6地址."
 msgid "The length of the IPv6 prefix in bits"
 msgstr "bit格式的IPv6前缀长度"
 
+msgid "The length should be (3-30)characters, current is "
+msgstr "长度应为3-30个字符，当前长度是"
+
 msgid ""
 "The network ports on this device can be combined to several <abbr title="
 "\"Virtual Local Area Network\">VLAN</abbr>s in which computers can "
@@ -2942,6 +2945,12 @@ msgstr "无线"
 
 msgid "Wifi config"
 msgstr "无线配置"
+
+msgid "Wifi configuration page"
+msgstr "无线配置页面"
+
+msgid "Wifi ssid (3-30)characters, One chinese as 3 characters"
+msgstr "无线名称(3-30)个字符，一个汉字占3个字符"
 
 msgid "Wireless"
 msgstr "无线"
