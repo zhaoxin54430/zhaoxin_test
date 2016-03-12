@@ -5,7 +5,7 @@
 local fs = require "nixio.fs"
 
 m = Map("system", translate("Router Password"),
-	translate("Changes the administrator password for accessing the device"))
+	translate("Changes the administrator password for accessing the device<p>Password must be include letters and numbers and more than 10 character</p>"))
 
 s = m:section(TypedSection, "_dummy", "")
 s.addremove = false
@@ -25,16 +25,27 @@ function m.on_commit(map)
 	local v1 = pw1:formvalue("_pass")
 	local v2 = pw2:formvalue("_pass")
 
-	if v1 and v2 and #v1 > 0 and #v2 > 0 then
+	if v1 and v2 and #v1 >= 10 and #v2 >= 10 then
 		if v1 == v2 then
-			if luci.sys.user.setpasswd(luci.dispatcher.context.authuser, v1) == 0 then
-				m.message = translate("Password successfully changed!")
+			local _ ;
+			local a_count = 0 ;
+			local d_count = 0 ;
+			_, a_count = string.gsub(v1, "%a", " ")
+			_, d_count = string.gsub(v1, "%d", " ")
+			if a_count > 0 and d_count > 0 then
+				if luci.sys.user.setpasswd(luci.dispatcher.context.authuser, v1) == 0 then
+					m.message = translate("Password successfully changed!")
+				else
+					m.message = translate("Unknown Error, password not changed!")
+				end			
 			else
-				m.message = translate("Unknown Error, password not changed!")
+				m.message = translate("Password must be include letters and numbers, password not changed")
 			end
 		else
 			m.message = translate("Given password confirmation did not match, password not changed!")
 		end
+	else
+		m.message = translate("Password must be more than 10 character, password not changed")
 	end
 end
 

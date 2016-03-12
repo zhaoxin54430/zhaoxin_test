@@ -433,8 +433,8 @@ msgstr "修改数"
 msgid "Changes applied."
 msgstr "更改已应用"
 
-msgid "Changes the administrator password for accessing the device"
-msgstr "修改访问设备的管理员密码"
+msgid "Changes the administrator password for accessing the device<p>Password must be include letters and numbers and more than 10 character</p>"
+msgstr "修改访问设备的管理员密码<p>密码必须包含字母和数字且长度不能小于10</p>"
 
 msgid "Channel"
 msgstr "信道"
@@ -1846,6 +1846,12 @@ msgstr "密码"
 
 msgid "Password authentication"
 msgstr "密码验证"
+
+msgid "Password must be include letters and numbers, password not changed"
+msgstr "密码必须包含字母和数字，密码修改失败"
+
+msgid "Password must be more than 10 character, password not changed"
+msgstr "密码长度不能小于10，密码修改失败"
 
 msgid "Password of Private Key"
 msgstr "私有密钥"
