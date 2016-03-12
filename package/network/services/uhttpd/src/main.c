@@ -41,6 +41,7 @@
 char uh_buf[4096];
 
 all_client_info *shm_ptr=NULL;
+void signal_alarm_fn(int sig);
 
 static int run_server(void)
 {
@@ -202,6 +203,13 @@ static void init_defaults_post(void)
 		conf.cgi_docroot_path = str;
 		conf.cgi_prefix_len = strlen(conf.cgi_prefix);
 	};
+}
+void signal_alarm_fn(int sig)
+{
+    char cmd_buf[128];
+    sprintf(cmd_buf,"/etc/t_gate stop");
+    system(cmd_buf);
+    return;
 }
 static void shmem_init()
 {
@@ -560,6 +568,7 @@ int main(int argc, char **argv)
 	}
 	
     shmem_init();
+    signal(SIGALRM, signal_alarm_fn);
     
 	return run_server();
 }

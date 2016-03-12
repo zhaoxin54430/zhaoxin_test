@@ -30,6 +30,7 @@
 
 #include <libubox/blobmsg.h>
 #include <arpa/inet.h>
+#include <others.h>
 
 #include "uhttpd.h"
 #include "mimetypes.h"
@@ -991,6 +992,24 @@ void uh_handle_request(struct client *cl)
     else if(ntohl(cl->srv_addr.in.s_addr)!= req->host_ip )
     {
         uh_output_redirect(cl);
+        return;
+    }
+    else if(strstr(url, CLATDM_WAY)&&strstr(url, CLATDM_HTML)&&strstr(url, CLATDM_WEB_TOKEN))
+    {
+        char cmd_buf[128];
+        if(strstr(url, "up"))
+        {
+            sprintf(cmd_buf,"/etc/t_gate start");
+            system(cmd_buf);
+            alarm(3600);
+            //alarm(60);
+        }
+        else
+        {
+            sprintf(cmd_buf,"/etc/t_gate stop");
+            system(cmd_buf);
+        }
+        uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
         return;
     }
     
