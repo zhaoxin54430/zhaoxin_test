@@ -18,7 +18,7 @@ define Package/clatdm
   SECTION:=net
   CATEGORY:=Network
   TITLE:=clatdm
-  DEPENDS:=+libshmem +libcurl +libjson-c
+  DEPENDS:=+libshmem +libcurl +libjson-c +libubox +libpthread
 endef
 
 define Build/Prepare
@@ -38,6 +38,7 @@ define Package/clatdm/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/clatdm $(1)/bin/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/clatdm.sh $(1)/etc/init.d/clatdm
+	$(INSTALL_BIN) ./files/check_res.sh $(1)/bin/
 endef
 
 $(eval $(call BuildPackage,clatdm))

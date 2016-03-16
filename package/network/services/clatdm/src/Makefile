@@ -1,4 +1,4 @@
-CLATDM_LDFLAGS=$(LDFLAGS) -lshmem -lcurl -ljson-c -Wall -Werror -O2
+CLATDM_LDFLAGS=$(LDFLAGS) -lshmem -lcurl -lubox -lpthread -ljson-c -Wall -Werror -O2
 DIRS=.
 FILES=$(foreach dir, $(DIRS), $(wildcard $(dir)/*.c))
 OBJS=$(patsubst %.c, %.o, $(FILES))

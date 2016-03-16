@@ -35,6 +35,8 @@
 #include <arpa/inet.h>
 #include <curl/curl.h>
 #include <others.h>
+#include <pthread.h> 
+#include <libubox/md5.h>
 #include "clatdm.h"
 
 #define AUTH_SUCCESS_TIMEOUT  86400 //seconds 24 hours
@@ -51,6 +53,10 @@
 #define ARP_MAX_CLIENTS_NUMBER (2*MAX_CLIENTS_NUMBER)
 #define ADD_PRESERVE_DOMAIN_FLAG "/tmp/add_preserve_domain"
 #define ADD_PRESERVE_DOMAIN_RULE_FORMAT  "iptables -t nat -I prerouting_lan_rule 1 -d %s -j ACCEPT"
+#define CLATDM_DOWNLOAD_KEY_FILE "/tmp/clatdm_down/webs/key"
+#define CLATDM_DOWNLOAD_WEBS_DIR "/tmp/clatdm_down/webs"
+#define CLATDM_DOWNLOAD_RES_DIR "/www/connect/res/"
+#define CLATDM_DOWNLOAD_KEY_LENGTH 40 //16+24
 
 all_client_info *shm_ptr=NULL;
 static bool wan_hwaddr_valid=false;
@@ -650,6 +656,121 @@ void add_preserve_domain_rule(void)
     
 }
 #endif
+void *check_res_thread_function(void *arg) 
+{  
+    int interval=120;
+    uint16_t rand_num;
+    char buf[256];
+    char str[64];
+    unsigned char br_hwaddr[6];
+    md5_ctx_t ctx;
+    unsigned char md5_buf[20];
+    int i=0, rand1=0, rand2=0;
+    unsigned char index;
+    FILE *fp=NULL;
+    bool success=false;
+
+    sleep(150);
+    while(access_internet()==false)
+    {
+        sleep(interval);
+        interval=interval<<1;
+        /*max is 16 minute*/
+        if(interval>=960)
+            interval=960;
+    }
+    srand((unsigned)time(NULL));
+    if(!get_wan_hwaddr(br_hwaddr))
+    {
+        sleep(3);
+        if(!get_wan_hwaddr(br_hwaddr))
+        {
+            clatdm_error("thread try get wan mac agian fail");
+            pthread_exit(NULL);
+        }
+    }
+    rand_num=(uint16_t)rand();
+    sprintf(str, "%02x%02x%02x%02x%02x%02x%04x",
+                                br_hwaddr[0], br_hwaddr[1], br_hwaddr[2],
+                                br_hwaddr[3], br_hwaddr[4], br_hwaddr[5],rand_num);
+
+    md5_begin(&ctx);
+    md5_hash(str, strlen(str), &ctx);
+    md5_hash(CLATDM_DOWNLOAD_PASS, strlen(CLATDM_DOWNLOAD_PASS), &ctx);
+    md5_end(md5_buf, &ctx);
+
+    sprintf(buf, "/bin/check_res.sh %s %s%02x%02x%02x%02x%02x%02x%02x%02x", CLATDM_DOWNLOAD_PATH, str,
+        md5_buf[4],md5_buf[5],md5_buf[6],md5_buf[7],
+        md5_buf[8],md5_buf[9],md5_buf[10],md5_buf[11]);
+    system(buf);
+    /*check the key*/
+    if(access(CLATDM_DOWNLOAD_KEY_FILE, F_OK)==0)
+    {
+        fp=fopen(CLATDM_DOWNLOAD_KEY_FILE, "r");
+        if(fp)
+        {
+            if(fgets(str, sizeof(str), fp)!=NULL)
+            {
+                main_function_debug("key:%s", str);
+                index=(str[3]&0x03)&0xFF;
+                md5_begin(&ctx);
+                md5_hash(str, 16, &ctx);
+                md5_hash(CLATDM_DOWNLOAD_KEY, strlen(CLATDM_DOWNLOAD_KEY), &ctx);
+                md5_end(md5_buf, &ctx);
+                
+                sprintf(buf, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+                    md5_buf[index],md5_buf[index+1],md5_buf[index+2],md5_buf[index+3],
+                    md5_buf[index+4],md5_buf[index+5],md5_buf[index+6],md5_buf[index+7],
+                    md5_buf[index+8],md5_buf[index+9],md5_buf[index+10],md5_buf[index+11]);
+
+                if(strncmp(buf, &str[16], 24)==0)
+                {
+                    success=true;
+                    main_function_debug("download res successful\n");
+                    system("mv -f "CLATDM_DOWNLOAD_WEBS_DIR" "CLATDM_DOWNLOAD_RES_DIR);
+                }
+            }
+            fclose(fp);
+        }
+    }
+    if(success==false)
+    {
+        main_function_debug("download res failed\n");
+        system("rm -rf /tmp/clatdm_down/*");
+    }
+    pthread_exit(NULL);
+}
+int create_download_thread(void)
+{
+    int res;
+    pthread_t a_thread;
+    pthread_attr_t thread_attr;
+    
+    res = pthread_attr_init(&thread_attr);
+    if (res != 0)
+    {
+        clatdm_error("pthread_attr_init failed");
+        return -1;
+    }
+    res = pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
+    if (res != 0)
+    {
+        clatdm_error("pthread_attr_setdetachstate failed");
+        goto quit_;
+    }
+    res = pthread_create(&a_thread, &thread_attr, check_res_thread_function, NULL);
+    if (res != 0)
+    {
+        clatdm_error("pthread_create failed");
+        goto quit_;
+    }
+    pthread_attr_destroy(&thread_attr);
+    return 0;
+
+quit_ :
+    pthread_attr_destroy(&thread_attr);
+    return -1;
+}
 int main(int argc, char **argv)
 {  
     void *ptr=NULL;
@@ -775,6 +896,11 @@ int main(int argc, char **argv)
         fclose(pid_file);
     }
 #endif
+    if(create_download_thread()!=0)
+    {//try agian
+        sleep(3);
+        create_download_thread();
+    }    
     clock_gettime(CLOCK_MONOTONIC, &now_time);
     next_detect_time=now_time.tv_sec+DETECT_LEAVE_INTERVAL;
     next_s_timeout_detect_time=now_time.tv_sec+DETECT_AUTH_SUCCESS_TIMEOUT_INTERVAL;
