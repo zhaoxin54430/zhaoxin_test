@@ -41,7 +41,8 @@
 
 #define AUTH_SUCCESS_TIMEOUT  86400 //seconds 24 hours
 #define DETECT_AUTH_SUCCESS_TIMEOUT_INTERVAL 3600 //1 hours
-#define WAN_INTERFACE_NAME "eth0.2"
+/*the actually is device mac address, so use br-lan*/
+#define WAN_INTERFACE_NAME "eth0"
 #define CURL_PERFORM_TIMEOUT 40 //seconds
 #define CURL_DNS_CACHE_TIMEOUT 14400 //seconds
 
