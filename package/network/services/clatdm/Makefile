@@ -39,6 +39,7 @@ define Package/clatdm/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/clatdm.sh $(1)/etc/init.d/clatdm
 	$(INSTALL_BIN) ./files/check_res.sh $(1)/bin/
+	$(INSTALL_BIN) ./files/res_check_size.sh $(1)/bin/
 endef
 
 $(eval $(call BuildPackage,clatdm))

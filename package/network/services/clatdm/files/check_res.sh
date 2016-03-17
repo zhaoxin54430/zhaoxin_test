@@ -19,6 +19,10 @@ down_success="100%"
 	mkdir $down_dir
 }
 
+rm -rf $des_file
+
+/bin/res_check_size.sh $$ &
+
 wget -O $des_file $url &> $down_log
 if grep -q '404' $down_log  &&  grep -q 'Not' $down_log  ; then
 	exit 0
