@@ -58,10 +58,12 @@ function action_requirement()
 		local luci_pass = luci.http.formvalue("up_password")
 		if local_pass and luci_pass and luci_pass == local_pass and file_supported() then
 			os.execute("rm -rf %s >/dev/null" % resource_tmp)
-			os.execute("rm -rf %s >/dev/null" % res_dir_webs)
-			if os.execute("mv -f %s %s >/dev/null" %{resource_res , res_dir}) == 0 then
-				os.execute("chmod 644 -R %s >/dev/null" % res_dir_webs)
-				result = true
+			if os.execute("ls %s >/dev/null" % resource_res) == 0 then
+				os.execute("rm -rf %s >/dev/null" % res_dir_webs)
+				if os.execute("mv -f %s %s >/dev/null" %{resource_res , res_dir}) == 0 then
+					os.execute("chmod 644 -R %s >/dev/null" % res_dir_webs)
+					result = true
+				end
 			end
 		end
 
