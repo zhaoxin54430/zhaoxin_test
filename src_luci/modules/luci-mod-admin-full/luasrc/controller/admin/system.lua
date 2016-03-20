@@ -35,7 +35,7 @@ function index()
 	entry({"admin", "system", "flashops"}, call("action_flashops"), _("Backup / Flash Firmware"), 70)
 	entry({"admin", "system", "flashops", "backupfiles"}, form("admin_system/backupfiles"))
 
-	--entry({"admin", "system", "reboot"}, call("action_reboot"), _("Reboot"), 90)
+	entry({"admin", "system", "reboot"}, call("action_reboot"), _("Reboot"), 90)
 end
 	--[[
 function action_clock_status()
