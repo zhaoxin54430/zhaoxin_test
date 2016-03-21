@@ -2266,6 +2266,9 @@ msgstr "设置时间同步"
 msgid "Setup DHCP Server"
 msgstr "配置DHCP服务器"
 
+msgid "Shop information"
+msgstr "门店信息"
+
 msgid "Show current backup file list"
 msgstr "显示当前文件备份列表"
 
