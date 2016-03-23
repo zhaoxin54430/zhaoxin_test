@@ -14,4 +14,11 @@ id_alue.rmempty = false
 key_alue = s:option(Value, "keyValue", "SecretKey")
 key_alue.rmempty = false
 
+m.on_after_commit = function(self)
+    if self.changed then    -- changes ?
+        os.execute("cp -rf /etc/config/shopInfo /www/connect/res/")
+        os.execute("/sbin/notify_uhttpd &")
+    end
+end
+
 return m

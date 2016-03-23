@@ -351,5 +351,5 @@ static inline void uh_client_unref(struct client *cl)
 	if (cl->state == CLIENT_STATE_CLEANUP)
 		ustream_state_change(cl->us);
 }
-
+void signal_usr1_fn(int sig);
 #endif

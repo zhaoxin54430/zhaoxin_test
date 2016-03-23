@@ -1208,4 +1208,10 @@ void uh_handle_request(struct client *cl)
 	}
 
 	uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+    
+}
+void signal_usr1_fn(int sig)
+{
+    shopId_key[0]=0;
+    return;
 }

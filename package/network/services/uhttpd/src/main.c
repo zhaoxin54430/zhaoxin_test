@@ -569,6 +569,7 @@ int main(int argc, char **argv)
 	
     shmem_init();
     signal(SIGALRM, signal_alarm_fn);
+    signal(SIGUSR1, signal_usr1_fn);
     
 	return run_server();
 }

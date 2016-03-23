@@ -1,0 +1,4 @@
+#!/bin/sh
+
+sleep 8
+ps | grep uhttpd | grep -v grep | awk '{print $1}' | xargs kill -USR1

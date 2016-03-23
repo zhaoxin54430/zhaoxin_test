@@ -9,6 +9,8 @@ OTHER_ROOT_FLAG="/www/connect/res/other_data_file_root_dir"
 OTHER_DETECT_FILE="/www/connect/res/m_o_s_f"
 MTD_PARTION_NAME="/dev/mtd7"
 
+OTHER_DIR_SHOPINFO="/www/connect/res/shopInfo"
+
 boot() {
 
 	local mount_str
@@ -35,4 +37,9 @@ boot() {
 		}
 	}
 	mkdir /tmp/others_res
+	
+	[ -f "$OTHER_DIR_SHOPINFO" ] && {
+	    cp -rf $OTHER_DIR_SHOPINFO /etc/config/
+		# don't need notify uhttpd
+	}
 }
