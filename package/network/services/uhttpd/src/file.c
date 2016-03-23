@@ -31,16 +31,26 @@
 #include <libubox/blobmsg.h>
 #include <arpa/inet.h>
 #include <others.h>
+#include <libubox/md5.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+//#include <syslog.h>
 
 #include "uhttpd.h"
 #include "mimetypes.h"
 
 #define MAX(a, b)	(((a) > (b)) ? (a) : (b))
+#define DEV_INTERFACE_NAME "eth0"
 
 static LIST_HEAD(index_files);
 static LIST_HEAD(dispatch_handlers);
 static LIST_HEAD(pending_requests);
 static int n_requests;
+
+static char shopId_key[96]={0,0};
+static char authurl_id[256]={0,0};
+static char hwaddr[20]={0,0};
+//static int read_shopinfo_times=0;
 
 struct deferred_request {
 	struct list_head list;
@@ -858,6 +868,72 @@ static char *uh_handle_alias(char *old_url)
 	return old_url;
 }
 
+static int uh_get_shop_info(char *shopId, char *secretKey)
+{
+    FILE *fp=NULL;
+    char buf[64];
+    char *pstart=NULL;
+    char *ptr_id, *ptr_key;
+    
+    if((shopId==NULL) || (secretKey==NULL))
+    {
+        return -1;
+    }
+    fp=fopen("/etc/config/shopInfo", "r");
+    if(!fp)
+    {
+        return -1;
+    }
+    ptr_id=shopId;
+    ptr_key=secretKey;
+    while(fgets(buf, sizeof(buf), fp))
+    {
+        if((pstart=strstr(buf, "idValue"))!=NULL)
+        {
+            pstart+=(strlen("idValue")+1);
+            while((*pstart==' ')||(*pstart=='\'')||(*pstart=='\"')||(*pstart=='\t')) pstart++; 
+            while((*pstart!='\'')&&(*pstart!='\"')&&(*pstart!=0)&&(*pstart!='\r')&&(*pstart!='\n'))
+                *shopId++=*pstart++;
+            *shopId=0;
+        }
+        if((pstart=strstr(buf, "keyValue"))!=NULL)
+        {
+            pstart+=(strlen("keyValue")+1);
+            while((*pstart==' ')||(*pstart=='\'')||(*pstart=='\"')||(*pstart=='\t')) pstart++;
+            while((*pstart!='\'')&&(*pstart!='\"')&&(*pstart!=0)&&(*pstart!='\r')&&(*pstart!='\n'))
+                *secretKey++=*pstart++;
+            *secretKey=0;
+        }
+    }
+    fclose(fp);
+    if((*ptr_id==0)||(*ptr_key==0))
+        return -1;
+
+    return 0;
+}
+
+static bool get_dev_hwaddr(unsigned char *hwaddr)
+{
+    int fd=-1;
+    bool success=false;
+    struct ifreq ifr;
+    
+    if(!hwaddr)
+        return success;
+        
+    if ((fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) >= 0) 
+    {
+        strcpy(ifr.ifr_name, DEV_INTERFACE_NAME);
+        if (ioctl(fd, SIOCGIFHWADDR, &ifr) == 0) 
+        {
+            memcpy(hwaddr, ifr.ifr_hwaddr.sa_data, 6);
+            success=true;
+        } 
+    } 
+    close(fd);
+    return success;
+}
+
 static void uh_output_200_OK(struct client *cl)
 {
     cl->request.disable_chunked = true;
@@ -872,9 +948,28 @@ static void uh_output_200_OK(struct client *cl)
     uh_request_done(cl);
 }
 
-
-static void uh_output_redirect(struct client *cl)
+/*
+ * return 0, successful
+ * return -1 failed
+*/
+static int uh_output_redirect(struct client *cl)
 {
+    char buf[200];
+    int i=0, len=0;
+    unsigned int addr_int;
+    client_info client;
+    int found=0;
+    unsigned char mac[6];
+    unsigned char md5_buf[20];
+    char client_mac[20];
+    char buf2[64];
+    char *page_ptr=LOCAL_CON_AUTH_PAGE;
+    md5_ctx_t ctx;
+
+    if((cl->peer_addr.family!=AF_INET)||(shm_ptr==NULL))
+    {
+        return -1;
+    }
 #if 0
     char *redirect_str="<html><head><title></title><script>(function(){window.location.href= \"http://192.168.1.1/connect/con_inet_auth.html\";})();</script></head><body></body></html>";
     cl->request.disable_chunked = true;
@@ -890,6 +985,68 @@ static void uh_output_redirect(struct client *cl)
     uh_request_done(cl);
 #endif
 #if 1
+    if(authurl_id[0]==0)
+    {
+        if((len=uh_urlencode(buf, sizeof(buf), WC_AUTH_URL, strlen(WC_AUTH_URL)))==-1)
+        {
+            return -1;
+        }
+        buf[len]=0;
+        snprintf(authurl_id, sizeof(authurl_id), "appId=%s&authUrl=%s", WC_APPID, buf);
+    }
+    //if((shopId_key[0]==0)||(read_shopinfo_times>0))
+    if(shopId_key[0]==0)
+    {
+        if(uh_get_shop_info(buf2, buf)==-1)
+        {
+            return -1;
+        }
+        snprintf(shopId_key, sizeof(shopId_key), "shopId=%s&secretKey=%s", buf2, buf);
+        //if(read_shopinfo_times>0)
+            //read_shopinfo_times--;
+    }
+    addr_int=ntohl(cl->peer_addr.in.s_addr);
+    sem_lock();
+    for(i=0; i<shm_ptr->client_num; i++)
+    {
+        if(shm_ptr->client[i].ip4_addr==addr_int)
+        {
+            memcpy(&client, &shm_ptr->client[i], sizeof(client));
+            found=1;
+            break;
+        }
+    }
+    sem_unlock();
+    if(found==0)
+    {
+        return -1;
+    }
+    if(hwaddr[0]==0)
+    {
+        if(get_dev_hwaddr(mac)==false)
+        {
+            return -1;
+        }
+        sprintf(hwaddr, "%02x%02x%02x%02x%02x%02x",
+                mac[0], mac[1], mac[2],mac[3], mac[4], mac[5]);
+    }
+    sprintf(client_mac, "%02x:%02x:%02x:%02x:%02x:%02x", 
+                            client.mac_addr[0], client.mac_addr[1], client.mac_addr[2],
+                            client.mac_addr[3], client.mac_addr[4], client.mac_addr[5]);
+    
+    sprintf(buf2, "%s%08x%02x%02x%02x%02x%02x%02x", hwaddr, client.ip4_addr, 
+            client.mac_addr[0], client.mac_addr[1], client.mac_addr[2],
+            client.mac_addr[3], client.mac_addr[4], client.mac_addr[5]);
+    
+    md5_begin(&ctx);
+    md5_hash(buf2, strlen(buf2), &ctx);
+    md5_hash(CLATDM_AUTH_PASS, strlen(CLATDM_AUTH_PASS), &ctx);
+    md5_end(md5_buf, &ctx);
+    
+    sprintf(buf, "%s%02x%02x%02x%02x%02x%02x%02x%02x", buf2,
+                            md5_buf[4], md5_buf[5], md5_buf[6],md5_buf[7], 
+                            md5_buf[8], md5_buf[9], md5_buf[10], md5_buf[11]);
+    
     cl->request.disable_chunked = true;
     cl->request.connection_close = true;
 //    uh_http_header(cl, 302, "Found");
@@ -902,8 +1059,17 @@ static void uh_output_redirect(struct client *cl)
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"Cache-Control\" CONTENT=\"no-store, must-revalidate\">\r\n"); 
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"Wed, 26 Feb 1997 08:21:57 GMT\">\r\n");
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"0\">\r\n");
-    ustream_printf(cl->us, "Location: http://%s/connect/con_inet_auth.html\r\n\r\n",inet_ntoa(cl->srv_addr.in));
+    
+    if(access("/www/"RES_CON_AUTH_PAGE, F_OK)==0)
+    {
+        page_ptr=RES_CON_AUTH_PAGE;
+    }
+    ustream_printf(cl->us, "Location: http://%s/%s?%s&extend=%s&mac=%s&%s\r\n\r\n",
+            inet_ntoa(cl->srv_addr.in), page_ptr, authurl_id, buf, client_mac, shopId_key);
+    
     uh_request_done(cl);
+    return 0;
+    
 #endif
 #if 0
     cl->request.disable_chunked = true;
@@ -991,8 +1157,12 @@ void uh_handle_request(struct client *cl)
     }
     else if(ntohl(cl->srv_addr.in.s_addr)!= req->host_ip )
     {
-        uh_output_redirect(cl);
-        return;
+        if(uh_output_redirect(cl)!=0)
+        {
+            //uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            uh_client_error(cl, 502, "Bad Gateway", "The process did not produce any response");
+        }
+        return ;
     }
     else if(strstr(url, CLATDM_WAY)&&strstr(url, CLATDM_HTML)&&strstr(url, CLATDM_WEB_TOKEN))
     {
@@ -1012,6 +1182,11 @@ void uh_handle_request(struct client *cl)
         uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
         return;
     }
+    /*
+    if((cl->request.method==UH_HTTP_MSG_POST)&&(strstr(url, "aboutshop")))
+    {
+        read_shopinfo_times=5;
+    } */
     
 	d = dispatch_find(url, NULL);
 	if (d)
