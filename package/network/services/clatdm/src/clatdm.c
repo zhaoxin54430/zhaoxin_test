@@ -1014,6 +1014,7 @@ int main(int argc, char **argv)
                         {
                             arp_found=true;
                             shm_ptr->client[i].detec_leave=0;
+                            break;
                         }
                     }
                     if(arp_found==false)
