@@ -5,7 +5,7 @@
 #include <time.h>
 
 #define SHMEM_SIZE 4096
-#define MAX_CLIENTS_NUMBER 64
+#define MAX_CLIENTS_NUMBER 128
 #define BRIDGE_NAME "br-lan"
 #define ADD_REDIRECT_RULE_FORMAT  "iptables -t nat -A prerouting_lan_rule -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
 #define DELETE_REDIRECT_RULE_FORMAT  "iptables -t nat -D prerouting_lan_rule -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
@@ -34,6 +34,7 @@ typedef enum
     REDIRECT_RULE    = 1, /*client request ip successful, and had added redirect rule to firewall*/
     ADD_ALLOW_RULE , /*user had click the 'connect' button, router had add allow rule for the client*/
     AUTH_SUCCESSFUL , /*client had auth successful*/
+    NOLIMIT_CLIENT, /*the client of assocation to ssid2 is no limit*/
 }client_status;
 /*if modify the client_info,need modify the MAX_CLIENTS_NUMBER, it make sure MAX_CLIENTS_NUMBER * sizeof(client_info) < SHMEM_SIZE -1 */
 typedef struct clientInfo{
@@ -48,7 +49,7 @@ typedef struct clientInfo{
 }client_info;
 
 typedef struct allClientInfo{
-    char client_num;
+    unsigned char client_num;
     client_info client[MAX_CLIENTS_NUMBER];
 }all_client_info;
 

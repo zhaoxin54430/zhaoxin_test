@@ -123,6 +123,13 @@ config wifi-iface
 	option ssid     OpenWrt
 	option encryption none
 
+config wifi-iface
+	option device	radio$devidx
+	option network	lan
+	option mode		ap
+	option ssid		OpenWrt_encry
+	option encryption psk-mixed
+	option key		12345678
 EOF
 	devidx=$(($devidx + 1))
 	done

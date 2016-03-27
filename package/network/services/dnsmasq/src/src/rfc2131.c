@@ -2551,13 +2551,42 @@ static void do_options(struct dhcp_context *context,
 
 #define TRUE 1
 #define FALSE 0
+
+int is_wlanx_client(char *wlan_name, unsigned char *mac)
+{
+    int found=FALSE;
+    char buf[64];
+    FILE *fp=NULL;
+    
+    if((wlan_name==NULL)||(mac==NULL))
+    {
+        return FALSE;
+    }
+    sprintf(buf, "iw dev %s station get %02x:%02x:%02x:%02x:%02x:%02x",
+        wlan_name, mac[0], mac[1], mac[2],mac[3], mac[4], mac[5]);    
+
+    fp = popen(buf, "r");
+    if(fp==NULL)
+    {
+        my_syslog(MS_DHCP | LOG_INFO, "popen: %s failed", buf);
+        return FALSE;
+    }
+    if(fgets(buf, sizeof(buf), fp) && strstr(buf, "Station"))
+    {
+        found=TRUE;
+    }
+    pclose(fp);
+    return found;
+}
+
 void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
 {
     int i=0;
-    char found=FALSE, add_rule=FALSE, delete_prev_rule=FALSE;
+    char found=FALSE, add_rule=FALSE, delete_prev_rule=FALSE, add_allow_rule=FALSE;
     char buf[256], mac_buf[64], ip_buf1[32];
     struct in_addr gw_addr, ip_addr;
     unsigned int addr_int;
+    char nolimit_client=FALSE;
 
     ip_addr.s_addr=0;
     gw_addr.s_addr=0;
@@ -2582,6 +2611,8 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
             intf, ip_buf1, inet_ntoa(gw_addr));
         return;
     }
+    nolimit_client=is_wlanx_client("wlan0-1", mac);
+
     if(output_dnsmasq_shmem_log)
     {
         print_mac(mac_buf, mac, 6);
@@ -2594,20 +2625,39 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
     {
         if(shm_ptr->client[i].ip4_addr==addr_int)
         {
-            /*we think that this is a new client*/
-            if(memcmp(shm_ptr->client[i].mac_addr, mac, 6)!=0)
+            if(nolimit_client==TRUE)
             {
+                if(shm_ptr->client[i].status!=NOLIMIT_CLIENT)
+                {
 #ifdef CLIENT_RECORD_RELEASE_TIME                
-                shm_ptr->client[i].release_time=0;
+                    shm_ptr->client[i].release_time=0;
 #endif                
-                shm_ptr->client[i].status=REDIRECT_RULE;
-                shm_ptr->client[i].time_out=0;
-                shm_ptr->client[i].detec_leave=0;
+                    shm_ptr->client[i].status=NOLIMIT_CLIENT;
+                    shm_ptr->client[i].time_out=0;
+                    shm_ptr->client[i].detec_leave=0;
+                    delete_prev_rule=TRUE;
+                    add_allow_rule=TRUE;
+                }
                 memcpy(shm_ptr->client[i].mac_addr, mac, 6);
-                delete_prev_rule=TRUE;
-                add_rule=TRUE;
             }
-            //else /*mac and ip is same, do nothing*/
+            else
+            {
+                /*we think that this is a new client, or last status==NOLIMIT_CLIENT*/
+                if((memcmp(shm_ptr->client[i].mac_addr, mac, 6)!=0)
+                    ||(shm_ptr->client[i].status==NOLIMIT_CLIENT))
+                {
+#ifdef CLIENT_RECORD_RELEASE_TIME                
+                    shm_ptr->client[i].release_time=0;
+#endif                
+                    shm_ptr->client[i].status=REDIRECT_RULE;
+                    shm_ptr->client[i].time_out=0;
+                    shm_ptr->client[i].detec_leave=0;
+                    memcpy(shm_ptr->client[i].mac_addr, mac, 6);
+                    delete_prev_rule=TRUE;
+                    add_rule=TRUE;
+                }
+                //else /*mac and ip is same and last status != NOLIMIT_CLIENT, do noting*/   
+            }
             
             found=TRUE;
             break;
@@ -2621,23 +2671,32 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
             sem_unlock();
             my_syslog(MS_DHCP | LOG_INFO, "process_client_add !!!!errro, client info buffer is full"); 
             return;
-        }   
+        }
+        
         shm_ptr->client[shm_ptr->client_num].ip4_addr=addr_int;
 #ifdef CLIENT_RECORD_RELEASE_TIME        
         shm_ptr->client[shm_ptr->client_num].release_time=0;
-#endif        
-        shm_ptr->client[shm_ptr->client_num].status=REDIRECT_RULE;
+#endif 
+        if(nolimit_client==TRUE)
+        {
+            shm_ptr->client[shm_ptr->client_num].status=NOLIMIT_CLIENT;
+            add_allow_rule=TRUE;
+        }
+        else
+        {
+            shm_ptr->client[shm_ptr->client_num].status=REDIRECT_RULE;
+            add_rule=TRUE;
+        }
         shm_ptr->client[shm_ptr->client_num].time_out=0;
         shm_ptr->client[shm_ptr->client_num].detec_leave=0;
         memcpy(shm_ptr->client[shm_ptr->client_num].mac_addr, mac, 6);
         shm_ptr->client_num++;
-        add_rule=TRUE;   
     }
     sem_unlock();
     
     if(delete_prev_rule==TRUE)
     {
-        sprintf(buf, DELETE_ALLOW_RULE_FORMAT, inet_ntoa(ip_addr));
+        sprintf(buf, DELETE_ALLOW_RULE_FORMAT, ip_buf1);
         system(buf);
         sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, ip_buf1, inet_ntoa(gw_addr));
         system(buf);
@@ -2648,6 +2707,11 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
             my_syslog(MS_DHCP | LOG_INFO, "process_client_add add rule");
             
         sprintf(buf, ADD_REDIRECT_RULE_FORMAT, ip_buf1, inet_ntoa(gw_addr));
+        system(buf);
+    }
+    if(add_allow_rule==TRUE)
+    {
+        sprintf(buf, ADD_ALLOW_RULE_FORMAT, ip_buf1);
         system(buf);
     }
 }
