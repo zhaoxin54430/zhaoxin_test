@@ -13,7 +13,7 @@ function index()
 	entry({"admin", "system", "clock_status"}, call("action_clock_status"))
 	]]--
 	entry({"admin", "system", "admin"}, cbi("admin_system/admin"), _("Administration"), 2)
-	entry({"admin", "system", "aboutshop"}, cbi("admin_system/aboutshop", {hidesavebtn=true}), _(""), 20)
+	entry({"admin", "system", "informataboutshop"}, cbi("admin_system/aboutshop", {hidesavebtn=true}), _(""), 20)
 	--[[
 	if fs.access("/bin/opkg") then
 		entry({"admin", "system", "packages"}, call("action_packages"), _("Software"), 10)
