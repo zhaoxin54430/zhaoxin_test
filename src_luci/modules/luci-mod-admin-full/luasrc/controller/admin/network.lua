@@ -63,14 +63,17 @@ function index()
 			page = entry({"admin", "network", "wireless_shutdown"}, call("wifi_shutdown"), nil)
 			page.leaf = true
 
+			page = entry({"admin", "network", "wireless"}, arcombine(template("admin_network/wifi_overview"), cbi("admin_network/wifi")), _("Wifi"), 15)
+	--[[		
 			page = entry({"admin", "network", "wireless_conf"}, cbi("admin_network/wifi_conf"), _("Wifi config"), 20)
 			page.leaf = true
 			
 			page = entry({"admin", "network", "wireless"}, template("admin_network/wifi_overview"), _("Wifi"), 15)
+	]]--
 			page.leaf = true
 			page.subindex = true
---[[
-			if page.inreq then
+
+	--		if page.inreq then
 				local wdev
 				local net = require "luci.model.network".init(uci)
 				for _, wdev in ipairs(net:get_wifidevs()) do
@@ -79,12 +82,12 @@ function index()
 						entry(
 							{"admin", "network", "wireless", wnet:id()},
 							alias("admin", "network", "wireless"),
-							wdev:name() .. ": " .. wnet:shortname()
+							wnet:ssid()
 						)
 					end
 				end
-			end
-]]--
+	--		end
+
 		end
 	--[[
 

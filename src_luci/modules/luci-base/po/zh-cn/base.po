@@ -2950,16 +2950,19 @@ msgid "Width"
 msgstr "频宽"
 
 msgid "Wifi"
-msgstr "无线"
+msgstr "Wifi"
 
 msgid "Wifi config"
-msgstr "无线配置"
+msgstr "Wifi配置"
 
 msgid "Wifi configuration page"
-msgstr "无线配置页面"
+msgstr "Wifi配置页面"
 
-msgid "Wifi ssid (3-30)characters, One chinese as 3 characters"
-msgstr "无线名称(3-30)个字符，一个汉字占3个字符"
+msgid "Wifi password, The length is (8-63)"
+msgstr "Wifi密码,长度是(8-63)个字符"
+
+msgid "Wifi ssid, The length is (3-30), One chinese length is 3"
+msgstr "Wifi名称,长度是(3-30)个字符,一个汉字长度为3"
 
 msgid "Wireless"
 msgstr "无线"
