@@ -952,9 +952,10 @@ static void uh_output_200_OK(struct client *cl)
  * return 0, successful
  * return -1 failed
 */
-static int uh_output_redirect(struct client *cl)
+static int uh_output_redirect(struct client *cl, char *url)
 {
     char buf[200];
+    char req_url[128];
     int i=0, len=0;
     unsigned int addr_int;
     client_info client;
@@ -985,6 +986,12 @@ static int uh_output_redirect(struct client *cl)
     uh_request_done(cl);
 #endif
 #if 1
+    if((len=uh_urlencode(req_url, sizeof(req_url), url, strlen(url)))==-1)
+    {
+        len=sizeof(req_url)-1;
+    }
+    req_url[len]=0;
+    
     if(authurl_id[0]==0)
     {
         if((len=uh_urlencode(buf, sizeof(buf), WC_AUTH_URL, strlen(WC_AUTH_URL)))==-1)
@@ -1064,8 +1071,8 @@ static int uh_output_redirect(struct client *cl)
     {
         page_ptr=RES_CON_AUTH_PAGE;
     }
-    ustream_printf(cl->us, "Location: http://%s/%s?%s&extend=%s&mac=%s&%s\r\n\r\n",
-            inet_ntoa(cl->srv_addr.in), page_ptr, authurl_id, buf, client_mac, shopId_key);
+    ustream_printf(cl->us, "Location: http://%s/%s?%s&extend=%s&mac=%s&%s&reqUrl=%s\r\n\r\n",
+            inet_ntoa(cl->srv_addr.in), page_ptr, authurl_id, buf, client_mac, shopId_key, req_url);
     
     uh_request_done(cl);
     return 0;
@@ -1157,7 +1164,7 @@ void uh_handle_request(struct client *cl)
     }
     else if(ntohl(cl->srv_addr.in.s_addr)!= req->host_ip )
     {
-        if(uh_output_redirect(cl)!=0)
+        if(uh_output_redirect(cl, url)!=0)
         {
             //uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
             uh_client_error(cl, 502, "Bad Gateway", "The process did not produce any response");
