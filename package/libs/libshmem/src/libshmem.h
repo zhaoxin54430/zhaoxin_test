@@ -7,8 +7,8 @@
 #define SHMEM_SIZE 4096
 #define MAX_CLIENTS_NUMBER 128
 #define BRIDGE_NAME "br-lan"
-#define ADD_REDIRECT_RULE_FORMAT  "iptables -t nat -A prerouting_lan_rule -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
-#define DELETE_REDIRECT_RULE_FORMAT  "iptables -t nat -D prerouting_lan_rule -s %s -p tcp --dport 80 -j DNAT --to-destination %s"
+#define ADD_REDIRECT_RULE_FORMAT  "iptables -t nat -A prerouting_lan_rule -s %s -p tcp -m multiport --dport 80,8080,443 -j DNAT --to-destination %s"
+#define DELETE_REDIRECT_RULE_FORMAT  "iptables -t nat -D prerouting_lan_rule -s %s -p tcp -m multiport --dport 80,8080,443 -j DNAT --to-destination %s"
 #define ADD_ALLOW_RULE_FORMAT  "iptables -t filter -A forwarding_lan_rule -s %s -j ACCEPT"
 #define DELETE_ALLOW_RULE_FORMAT  "iptables -t filter -D forwarding_lan_rule -s %s -j ACCEPT"
 //#define CLIENT_RECORD_RELEASE_TIME
