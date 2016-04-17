@@ -59,7 +59,7 @@
 				
 				partition@7b0000 {
 					label = "otherDate";
-					reg = <0x7b0000 0x400000>;
+					reg = <0x7b0000 0x850000>;
 				};
 			};
 		};
