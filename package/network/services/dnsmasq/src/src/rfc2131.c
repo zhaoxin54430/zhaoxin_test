@@ -21,6 +21,8 @@
 #define option_len(opt) ((int)(((unsigned char *)(opt))[1]))
 #define option_ptr(opt, i) ((void *)&(((unsigned char *)(opt))[2u+(unsigned int)(i)]))
 
+#define WLAN01_MAC_TEMP_FILE "/var/mac_temp_file"
+#define ENCRYPT_RESERVE_WLAN_INTF "wlan0-1"
 #ifdef HAVE_SCRIPT
 static void add_extradata_opt(struct dhcp_lease *lease, unsigned char *opt);
 #endif
@@ -2555,27 +2557,30 @@ static void do_options(struct dhcp_context *context,
 int is_wlanx_client(char *wlan_name, unsigned char *mac)
 {
     int found=FALSE;
-    char buf[64];
+    char buf[128];
     FILE *fp=NULL;
     
     if((wlan_name==NULL)||(mac==NULL))
     {
         return FALSE;
     }
-    sprintf(buf, "iw dev %s station get %02x:%02x:%02x:%02x:%02x:%02x",
-        wlan_name, mac[0], mac[1], mac[2],mac[3], mac[4], mac[5]);    
-
-    fp = popen(buf, "r");
+    sprintf(buf, "iw dev %s station get %02x:%02x:%02x:%02x:%02x:%02x > "WLAN01_MAC_TEMP_FILE,
+        wlan_name, mac[0], mac[1], mac[2],mac[3], mac[4], mac[5]);
+        
+    system(buf);
+    fp = fopen(WLAN01_MAC_TEMP_FILE, "r");
     if(fp==NULL)
     {
         my_syslog(MS_DHCP | LOG_INFO, "popen: %s failed", buf);
+        unlink(WLAN01_MAC_TEMP_FILE);
         return FALSE;
     }
+    unlink(WLAN01_MAC_TEMP_FILE);
     if(fgets(buf, sizeof(buf), fp) && strstr(buf, "Station"))
     {
         found=TRUE;
     }
-    pclose(fp);
+    fclose(fp);
     return found;
 }
 
@@ -2611,7 +2616,7 @@ void process_client_add( void *addr, unsigned char *mac, void *gw, char *intf)
             intf, ip_buf1, inet_ntoa(gw_addr));
         return;
     }
-    nolimit_client=is_wlanx_client("wlan0-1", mac);
+    nolimit_client=is_wlanx_client(ENCRYPT_RESERVE_WLAN_INTF, mac);
 
     if(output_dnsmasq_shmem_log)
     {
