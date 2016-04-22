@@ -22,19 +22,19 @@ boot() {
 			mkdir $OTHER_ROOT
 		}
 		mount -t jffs2 /dev/$MTDBLOCK7 $OTHER_ROOT -o rw,sync
-		[ -f "$OTHER_ROOT_FLAG" ] || {
-			[ -f "$OTHER_DETECT_FILE" ] || {
-			#file system invalid
-				umount $OTHER_ROOT
-				mtd erase $MTD_PARTION_NAME
-				mtd write $OTHER_ROOT_IMG $MTD_PARTION_NAME
-				mount -t jffs2 /dev/$MTDBLOCK7 $OTHER_ROOT -o rw,sync
-				touch $OTHER_DETECT_FILE
-			}
-			[ -f "$OTHER_ROOT_FLAG" ] || {
-				touch $OTHER_ROOT_FLAG
-			}
-		}
+#		[ -f "$OTHER_ROOT_FLAG" ] || {
+#			[ -f "$OTHER_DETECT_FILE" ] || {
+#			#file system invalid
+#				umount $OTHER_ROOT
+#				mtd erase $MTD_PARTION_NAME
+#				mtd write $OTHER_ROOT_IMG $MTD_PARTION_NAME
+#				mount -t jffs2 /dev/$MTDBLOCK7 $OTHER_ROOT -o rw,sync
+#				touch $OTHER_DETECT_FILE
+#			}
+#			[ -f "$OTHER_ROOT_FLAG" ] || {
+#				touch $OTHER_ROOT_FLAG
+#			}
+#		}
 	}
 	mkdir /tmp/others_res
 	
