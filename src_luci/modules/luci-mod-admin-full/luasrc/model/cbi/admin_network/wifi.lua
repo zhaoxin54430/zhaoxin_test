@@ -28,6 +28,12 @@ function m.on_commit(map)
 	end
 end
 
+m.on_after_commit = function(self)
+    if self.changed then    -- changes ?
+        os.execute("/sbin/notify_uhttpd &")
+    end
+end
+
 nw.init(m.uci)
 
 local wnet = nw:get_wifinet(arg[1])

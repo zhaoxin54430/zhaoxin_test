@@ -50,6 +50,7 @@ static int n_requests;
 static char shopId_key[96]={0,0};
 static char authurl_id[256]={0,0};
 static char hwaddr[20]={0,0};
+static char first_ssid[100]={0,0};
 //static int read_shopinfo_times=0;
 
 struct deferred_request {
@@ -868,6 +869,49 @@ static char *uh_handle_alias(char *old_url)
 	return old_url;
 }
 
+static int uh_get_ssid(char *ssid)
+{
+    FILE *fp=NULL;
+    char buf[64];
+    char *pstart=NULL;
+    char *ptr_id;
+    
+    if(ssid==NULL)
+    {
+        return -1;
+    }
+    fp=fopen("/etc/config/wireless", "r");
+    if(!fp)
+    {
+        return -1;
+    }
+    ptr_id=ssid;
+    *ptr_id=0;
+    while(fgets(buf, sizeof(buf), fp))
+    { /*default get the first ssid*/
+        if((pstart=strstr(buf, "ssid"))!=NULL)
+        {
+            pstart+=(strlen("ssid")+1);
+            while((*pstart==' ')||(*pstart=='\'')||(*pstart=='\"')||(*pstart=='\t')) pstart++; 
+            while((*pstart!='\'')&&(*pstart!='\"')&&(*pstart!=0)&&(*pstart!='\r')&&(*pstart!='\n'))
+            {
+                *ssid++=*pstart++;
+                if((ssid-ptr_id)>=32)
+                {/*max ssid length is 32 bytes*/
+                    *ptr_id=0;
+                }
+            }
+            *ssid=0;
+            break;
+        }
+    }
+    fclose(fp);
+    if(*ptr_id==0)
+        return -1;
+
+    return 0;
+}
+
 static int uh_get_shop_info(char *shopId, char *secretKey)
 {
     FILE *fp=NULL;
@@ -1012,6 +1056,16 @@ static int uh_output_redirect(struct client *cl, char *url)
         //if(read_shopinfo_times>0)
             //read_shopinfo_times--;
     }
+    if(first_ssid[0]==0)
+    {
+        if((uh_get_ssid(buf2)==0) 
+            &&((len=uh_urlencode(first_ssid, sizeof(first_ssid), buf2, strlen(buf2)))!=-1))
+        {
+            first_ssid[len]=0;
+        }
+        else
+            return -1;
+    }
     addr_int=ntohl(cl->peer_addr.in.s_addr);
     sem_lock();
     for(i=0; i<shm_ptr->client_num; i++)
@@ -1071,8 +1125,8 @@ static int uh_output_redirect(struct client *cl, char *url)
     {
         page_ptr=RES_CON_AUTH_PAGE;
     }
-    ustream_printf(cl->us, "Location: http://%s/%s?%s&extend=%s&mac=%s&%s&reqUrl=%s\r\n\r\n",
-            inet_ntoa(cl->srv_addr.in), page_ptr, authurl_id, buf, client_mac, shopId_key, req_url);
+    ustream_printf(cl->us, "Location: http://%s/%s?%s&extend=%s&mac=%s&ssid=%s&%s&reqUrl=%s\r\n\r\n",
+            inet_ntoa(cl->srv_addr.in), page_ptr, authurl_id, buf, client_mac, first_ssid, shopId_key, req_url);
     
     uh_request_done(cl);
     return 0;
@@ -1220,5 +1274,6 @@ void uh_handle_request(struct client *cl)
 void signal_usr1_fn(int sig)
 {
     shopId_key[0]=0;
+    first_ssid[0]=0;
     return;
 }

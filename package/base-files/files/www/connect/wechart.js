@@ -52,7 +52,7 @@ function Wechat_GotoRedirect(appId, extend, timestamp, sign, shopId, authUrl, ma
             + "&shopId=" + shopId
             + "&authUrl=" + encodeURIComponent(authUrl)
             + "&mac=" + mac
-            + "&ssid=" + ssid
+            + "&ssid=" + encodeURIComponent(ssid)
     }
     var script = document.createElement('script');
     script.setAttribute('src', url);
@@ -130,7 +130,7 @@ function Wechat_callWechatBrowser(){
     var authUrl = decodeURIComponent(Wechat_getParameter("authUrl"));
     var secretKey = Wechat_getParameter("secretKey");
     var bssid = "";
-    var ssid = "";
+    var ssid = decodeURIComponent(Wechat_getParameter("ssid"));
     var timestamp = Date.parse(new Date());
 
     var toSign = appId + extend + timestamp + shopId + authUrl + mac + ssid + secretKey;
