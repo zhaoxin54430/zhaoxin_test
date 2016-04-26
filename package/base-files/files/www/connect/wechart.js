@@ -10,6 +10,7 @@ function Wechat_errorJump()
     if((now - Wechat_callUpTimestamp) > 4*1000){
         return;
     }
+    Wechat_reset_prompt();
     alert('该浏览器不支持自动跳转微信请手动打开微信\n如果已跳转请忽略此提示');
 }
 Wechat_myHandler = function(error) {
@@ -21,11 +22,17 @@ function Wechat_createIframe(){
     document.body.appendChild(iframe);
     Wechat_loadIframe = iframe;
 }
+function Wechat_isIOS(){
+    var ua=navigator.userAgent;
+    if (ua.indexOf("iPhone") != -1 ||ua.indexOf("iPod")!=-1||ua.indexOf("iPad") != -1) {   //iPhone
+        return true;
+    }else{
+        return false;
+    }
+}
 function jsonpCallback(result){
     if(result && result.success){
-        //alert('WeChat will call up : ' + result.success + '  data:' + result.data);
-        var ua=navigator.userAgent;
-        if (ua.indexOf("iPhone") != -1 ||ua.indexOf("iPod")!=-1||ua.indexOf("iPad") != -1) {   //iPhone
+        if (Wechat_isIOS()) {
             document.location = result.data;
         }else{
             Wechat_createIframe();
@@ -36,6 +43,7 @@ function jsonpCallback(result){
             },3000);
         }
     }else if(result && !result.success){
+        Wechat_reset_prompt();
         alert(result.data);
     }
 }
@@ -60,49 +68,47 @@ function Wechat_GotoRedirect(appId, extend, timestamp, sign, shopId, authUrl, ma
 }
 var Wechat_xmlhttp;
 var Wechat_tryTimes=0;
-function Wechat_requestTempConnect()
-{
+function Wechat_sendConnectRequest() {
     Wechat_xmlhttp=null;
-    if (window.XMLHttpRequest)
-    {// code for all new browsers
-        Wechat_xmlhttp=new XMLHttpRequest();
+    if (window.XMLHttpRequest) {
+        Wechat_xmlhttp = new XMLHttpRequest();
     }
-    else if (window.ActiveXObject)
-    {// code for IE5 and IE6
-        Wechat_xmlhttp=new ActiveXObject("Microsoft.XMLHTTP");
+    else if (window.ActiveXObject) {
+        Wechat_xmlhttp = new ActiveXObject("Microsoft.XMLHTTP");
     }
-    if (Wechat_xmlhttp!=null)
-    {
-        var url = 'request_connect_allow';
-        Wechat_xmlhttp.onreadystatechange=Wechat_state_Change;
-        Wechat_xmlhttp.open("GET",url,true);
+    if (Wechat_xmlhttp != null) {
+        var url;
+        if (Wechat_isIOS())
+            url = 'success.html';
+        else
+            url = 'request_connect_allow';
+        Wechat_click_prompt();
+        Wechat_xmlhttp.onreadystatechange = Wechat_state_Change;
+        Wechat_xmlhttp.open("GET", url, true);
         Wechat_xmlhttp.send(null);
     }
-    else
-    {
+    else {
         alert("你的浏览器不支持XMLHTTP.");
     }
 }
-function Wechat_state_Change()
-{
-    if (Wechat_xmlhttp.readyState==4)
-    {
-        if (Wechat_xmlhttp.status==200)
-        {
-            Wechat_callWechatBrowser();
+function Wechat_state_Change() {
+    if (Wechat_xmlhttp.readyState == 4) {
+        if (Wechat_xmlhttp.status == 200) {
+            if(Wechat_isIOS())
+                Wechat_partial_flush();
+            else
+                Wechat_callWechatBrowser();
         }
-        else if (Wechat_xmlhttp.status==404)
-        {// 404 not find client from share memory
+        else if (Wechat_xmlhttp.status == 404) {// 404 not find client from share memory
+            Wechat_reset_prompt();
             alert("认证失败，请重新连接wifi再尝试！");
         }
-        else
-        {
-            if(Wechat_tryTimes < 3)
-            {
-                Wechat_requestTempConnect();
+        else {
+            if (Wechat_tryTimes < 3) {
+                Wechat_sendConnectRequest();
             }
-            else
-            {
+            else {
+                Wechat_reset_prompt();
                 alert("认证失败，请重新连接wifi再尝试！");
             }
             Wechat_tryTimes++;
@@ -121,6 +127,16 @@ function Wechat_getParameter(param)
     if (iEnd == -1)
         return query.substring(iStart);
     return query.substring(iStart, iEnd);
+}
+function Wechat_partial_flush(){
+    document.getElementById("partial_flush_div").innerHTML = Wechat_xmlhttp.responseText;
+    setTimeout("Wechat_callWechatBrowser()","1000");
+}
+function Wechat_click_prompt(){
+    document.getElementById("attention_link").innerText = "跳转中...";
+}
+function Wechat_reset_prompt(){
+    document.getElementById("attention_link").innerText = "一键打开微信连Wi-Fi";
 }
 function Wechat_callWechatBrowser(){
     var appId = Wechat_getParameter("appId");

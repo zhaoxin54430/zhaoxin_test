@@ -134,6 +134,7 @@ struct http_request {
 	bool expect_cont;
 	bool connection_close;
 	bool disable_chunked;
+	bool isIOS;
 	uint8_t transfer_chunked;
 	uint32_t host_ip;
 	const struct auth_realm *realm;

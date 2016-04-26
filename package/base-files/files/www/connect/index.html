@@ -8,9 +8,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="format-detection" content="telephone=no">
-    <link rel="stylesheet" href="follow.css"/>
-    <script type="text/javascript" src="md5-min.js"></script>
     <script type="text/javascript" src="wechart.js"></script>
+    <script type="text/javascript" src="md5-min.js"></script>
+    <link rel="stylesheet" href="follow.css"/>
 </head>
 <body class="mod-simple-follow">
 <div class="mod-simple-follow-page">
@@ -23,7 +23,9 @@
     </div>
     <div class="mod-simple-follow-page__attention">
         <p class="mod-simple-follow-page__attention-txt">欢迎使用微信连Wi-Fi</p>
-        <a class="mod-simple-follow-page__attention-btn" onclick="Wechat_requestTempConnect()">一键打开微信连Wi-Fi</a>
+        <a class="mod-simple-follow-page__attention-btn" onclick="Wechat_sendConnectRequest()" id="attention_link">一键打开微信连Wi-Fi</a>
+    </div>
+    <div class="mod-simple-nodis" id="partial_flush_div">
     </div>
 </div>
 </body>

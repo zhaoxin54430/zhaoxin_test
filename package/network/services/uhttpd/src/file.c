@@ -41,6 +41,7 @@
 
 #define MAX(a, b)	(((a) > (b)) ? (a) : (b))
 #define DEV_INTERFACE_NAME "eth0"
+#define IOS_JS_KEY_FILENAME "wechart.js"
 
 static LIST_HEAD(index_files);
 static LIST_HEAD(dispatch_handlers);
@@ -1242,6 +1243,21 @@ void uh_handle_request(struct client *cl)
         }
         uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
         return;
+    }
+    if(strstr(url, IOS_JS_KEY_FILENAME) && req->isIOS)
+    {
+        found=uh_set_auth_status(cl, &isChange);
+        if(found==1)
+        {
+            if(isChange==1)
+            {
+                strcpy(ip_buf, inet_ntoa(cl->peer_addr.in));
+                sprintf(buf, DELETE_REDIRECT_RULE_FORMAT, ip_buf, inet_ntoa(cl->srv_addr.in));      
+                system(buf);
+                sprintf(buf, ADD_ALLOW_RULE_FORMAT, ip_buf);
+                system(buf);
+            }
+        }
     }
     /*
     if((cl->request.method==UH_HTTP_MSG_POST)&&(strstr(url, "aboutshop")))

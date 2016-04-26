@@ -26,6 +26,10 @@ body {
 .mod-simple-follow {
     background-color: #FFF
 }
+.mod-simple-nodis {
+    visibility: hidden;
+    height: auto;
+}
 .mod-simple-follow-page {
     background-color: #FFF;
     height: 100%
