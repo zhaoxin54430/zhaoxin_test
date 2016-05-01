@@ -136,7 +136,7 @@ function Wechat_click_prompt(){
     document.getElementById("attention_link").innerText = "跳转中...";
 }
 function Wechat_reset_prompt(){
-    document.getElementById("attention_link").innerText = "一键打开微信连Wi-Fi";
+    document.getElementById("attention_link").innerText = "微信一键上网";
 }
 function Wechat_callWechatBrowser(){
     var appId = Wechat_getParameter("appId");
