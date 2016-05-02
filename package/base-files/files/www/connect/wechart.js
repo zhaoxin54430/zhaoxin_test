@@ -66,9 +66,26 @@ function Wechat_GotoRedirect(appId, extend, timestamp, sign, shopId, authUrl, ma
     script.setAttribute('src', url);
     document.getElementsByTagName('head')[0].appendChild(script);
 }
+var Wechat_visib_prefix;
+function Wechat_add_visib_event() {
+    if(typeof document.hidden !== 'undefined') {
+        Wechat_visib_prefix = '';
+    } else if (typeof document.webkitHidden !== 'undefined') {
+        Wechat_visib_prefix = 'webkit';
+    } else if (typeof document.mozHidden !== 'undefined') {
+        Wechat_visib_prefix = 'moz';
+    } else if (typeof document.msHidden !== 'undefined') {
+        Wechat_visib_prefix = 'ms';
+    } else {
+        Wechat_visib_prefix = '';
+        return;
+    }
+    document.addEventListener(Wechat_visib_prefix + 'visibilitychange', Wechat_putNoResponse, false);
+}
 var Wechat_xmlhttp;
 var Wechat_tryTimes=0;
 function Wechat_sendConnectRequest() {
+    Wechat_add_visib_event();
     Wechat_xmlhttp=null;
     if (window.XMLHttpRequest) {
         Wechat_xmlhttp = new XMLHttpRequest();
@@ -128,15 +145,22 @@ function Wechat_getParameter(param)
         return query.substring(iStart);
     return query.substring(iStart, iEnd);
 }
+function Wechat_setInnerText(element, text) {
+    if (typeof element.textContent == "string") {
+        element.textContent = text;
+    } else {
+        element.innerText = text;
+    }
+}
 function Wechat_partial_flush(){
     document.getElementById("partial_flush_div").innerHTML = Wechat_xmlhttp.responseText;
     setTimeout("Wechat_callWechatBrowser()","1000");
 }
 function Wechat_click_prompt(){
-    document.getElementById("attention_link").innerText = "跳转中...";
+    Wechat_setInnerText(document.getElementById("attention_link"),"跳转中...");
 }
 function Wechat_reset_prompt(){
-    document.getElementById("attention_link").innerText = "微信一键上网";
+    Wechat_setInnerText(document.getElementById("attention_link"),"微信一键上网");
 }
 function Wechat_callWechatBrowser(){
     var appId = Wechat_getParameter("appId");
@@ -153,8 +177,5 @@ function Wechat_callWechatBrowser(){
     var sign= hex_md5(toSign);
     Wechat_GotoRedirect(appId, extend, timestamp, sign, shopId, authUrl, mac, ssid, bssid);
 }
-/*<script type="text/javascript">
-    document.addEventListener('visibilitychange', Wechat_putNoResponse, false);
-</script>*/
 
 
