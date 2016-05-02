@@ -44,6 +44,7 @@
 #define LOCAL_CON_AUTH_PAGE "connect/index.html"
 #define RES_CON_AUTH_PAGE "connect/res/webs/index.html"
 #define REQUEST_CON_TOKEN "request_connect_allow"
+#define REQUEST_SUCCESS_TOKEN "request_success_connect"
 //#define ENABLE_MYUHTTPD_SYSLOG
 #if 0
 #ifdef ENABLE_MYUHTTPD_SYSLOG

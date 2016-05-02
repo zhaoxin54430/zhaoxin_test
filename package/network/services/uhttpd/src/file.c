@@ -1144,7 +1144,7 @@ static int uh_output_redirect(struct client *cl, char *url)
 }
 
 
-static int uh_set_auth_status(struct client *cl, int *isChange)
+static int uh_set_auth_status(struct client *cl, int *isChange, client_status cli_status)
 {
     int i=0;
     struct timespec time = {0, 0};
@@ -1165,10 +1165,26 @@ static int uh_set_auth_status(struct client *cl, int *isChange)
         if(shm_ptr->client[i].ip4_addr==addr_int)
         {
             found=1;
-            if((shm_ptr->client[i].status==REDIRECT_RULE))
+            if((shm_ptr->client[i].status==ADD_ALLOW_RULE))
             {
-                shm_ptr->client[i].status=ADD_ALLOW_RULE;
-                shm_ptr->client[i].time_out=time.tv_sec+CHECK_AUTH_TIMEOUT;
+                if(cli_status==AUTH_SUCCESSFUL)
+                {
+                    shm_ptr->client[i].status=AUTH_SUCCESSFUL;
+                    shm_ptr->client[i].time_out=time.tv_sec;
+                }
+            }
+            else if((shm_ptr->client[i].status==REDIRECT_RULE))
+            {
+                if(cli_status==AUTH_SUCCESSFUL)
+                {
+                    shm_ptr->client[i].status=AUTH_SUCCESSFUL;
+                    shm_ptr->client[i].time_out=time.tv_sec;
+                }
+                else
+                {
+                    shm_ptr->client[i].status=ADD_ALLOW_RULE;
+                    shm_ptr->client[i].time_out=time.tv_sec+CHECK_AUTH_TIMEOUT;
+                }
                 *isChange=1;
             }
             break;
@@ -1185,7 +1201,9 @@ void uh_handle_request(struct client *cl)
 	char *error_handler;
 	char buf[256];
 	char ip_buf[32];
-	int isChange=0, found=0;;
+	char *is_success_req=NULL;
+	client_status cli_status=ADD_ALLOW_RULE;
+	int isChange=0, found=0;
 
 	url = uh_handle_alias(url);
 
@@ -1195,9 +1213,14 @@ void uh_handle_request(struct client *cl)
 
 	req->redirect_status = 200;
 	
-    if(strstr(url, REQUEST_CON_TOKEN))
-    {   
-        found=uh_set_auth_status(cl, &isChange);
+    if(strstr(url, REQUEST_CON_TOKEN) 
+        || (NULL!=(is_success_req=strstr(url, REQUEST_SUCCESS_TOKEN))))
+    {  
+        if(NULL!=is_success_req)
+            cli_status=AUTH_SUCCESSFUL;
+        else
+            cli_status=ADD_ALLOW_RULE;
+        found=uh_set_auth_status(cl, &isChange, cli_status);
         if(found==1)
         {
             if(isChange==1)
@@ -1246,7 +1269,7 @@ void uh_handle_request(struct client *cl)
     }
     if(strstr(url, IOS_JS_KEY_FILENAME) && req->isIOS)
     {
-        found=uh_set_auth_status(cl, &isChange);
+        found=uh_set_auth_status(cl, &isChange, ADD_ALLOW_RULE);
         if(found==1)
         {
             if(isChange==1)
