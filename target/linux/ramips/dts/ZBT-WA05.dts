@@ -54,12 +54,12 @@
 
 				partition@50000 {
 					label = "firmware";
-					reg = <0x50000 0x760000>;
+					reg = <0x50000 0x600000>;
 				};
 				
-				partition@7b0000 {
+				partition@650000 {
 					label = "otherDate";
-					reg = <0x7b0000 0x850000>;
+					reg = <0x650000 0x9b0000>;
 				};
 			};
 		};
