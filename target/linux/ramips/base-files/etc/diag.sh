@@ -105,6 +105,9 @@ get_status_led() {
 	mofi3500-3gn)
 		status_led="mofi3500-3gn:green:status"
 		;;
+	monrt1)
+		status_led="monrt1:sys"
+		;;
 	mpr-a1)
 		status_led="hame:red:power"
 		;;

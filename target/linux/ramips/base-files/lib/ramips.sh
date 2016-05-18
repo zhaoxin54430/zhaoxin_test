@@ -217,6 +217,9 @@ ramips_board_detect() {
 	*"Microduino MicroWRT")
 		name="microwrt"
 		;;
+	*"ymonth MONRT1")
+		name="monrt1"
+		;;
 	*"NBG-419N")
 		name="nbg-419n"
 		;;

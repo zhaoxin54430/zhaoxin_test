@@ -143,6 +143,10 @@ case $board in
 	mofi3500-3gn)
 		set_usb_led "mofi3500-3gn:green:usb"
 		;;
+	monrt1)
+		ucidef_set_led_default "power" "power" "monrt1:sys" "1"
+		set_wifi_led "monrt1:wifi"
+		;;
 	mpr-a1)
 		set_wifi_led "hame:blue:system"
 		;;

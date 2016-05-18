@@ -69,6 +69,7 @@ platform_check_image() {
 	mlw221 | \
 	mlwg2 | \
 	mofi3500-3gn | \
+	monrt1 | \
 	mpr-a1 | \
 	mpr-a2 | \
 	mr-102n | \
