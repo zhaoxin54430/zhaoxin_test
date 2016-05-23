@@ -180,7 +180,7 @@ function action_flashops()
 	local image_tmp   = "/tmp/firmware.img"
 
 	local function image_supported()
-		return (os.execute("sysupgrade -T %q >/dev/null" % image_tmp) == 0)
+		return ((os.execute("/sbin/check_magic.sh %s >/dev/null 2>&1" % image_tmp) == 0) and (os.execute("sysupgrade -T %q >/dev/null" % image_tmp) == 0))
 	end
 
 	local function image_checksum()
