@@ -143,11 +143,12 @@ ifneq ($(CONFIG_PER_FEED_REPO),)
   endif
 endif
 
-MAGIC_FILE_WORDS="monrt1"
+FILE_WORDS="monrt1"
+MAGIC_FILE_WORDS="monrt"
 	
 $(curdir)/index: FORCE
 	@echo Generating package index...
-	for maigc_src_img in `ls $(BIN_DIR)/*$(MAGIC_FILE_WORDS)* 2>/dev/null`; do \
+	for maigc_src_img in `ls $(BIN_DIR)/*$(FILE_WORDS)* 2>/dev/null`; do \
 		cat "$(TOPDIR)/magic.bin" "$$maigc_src_img" > "$(BIN_DIR)/magic_$(MAGIC_FILE_WORDS).bin"  || exit 1; \
 	done
 	
