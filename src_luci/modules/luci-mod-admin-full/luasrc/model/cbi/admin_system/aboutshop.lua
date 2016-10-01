@@ -15,10 +15,16 @@ key_alue = s:option(Value, "keyValue", "SecretKey")
 key_alue.rmempty = false
 
 m.on_after_commit = function(self)
-    if self.changed then    -- changes ?
+--    if self.changed then    -- changes ?
         os.execute("cp -rf /etc/config/shopInfo /www/connect/res/")
         os.execute("/sbin/notify_uhttpd &")
-    end
+--    end
+end
+
+function id_alue.write(self, section, value)
+    Value.write(self, section, value)
+    magic_value=luci.util.exec("/bin/genShopMagic " .. value)
+    m:set(section, "magic", magic_value)
 end
 
 return m
