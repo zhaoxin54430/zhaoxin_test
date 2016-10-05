@@ -350,7 +350,9 @@ static void client_parse_header(struct client *cl, char *data)
 	} else if (!strcmp(data, "host")) {	    
 		if (strchr(val, ':')==NULL)
 		{
-		    if(inet_aton(val, &host_addr)!=0)
+		    if(strstr(val,"ymonth"))
+		        r->host_ip=ntohl(cl->srv_addr.in.s_addr);
+		    else if(inet_aton(val, &host_addr)!=0)
 		        r->host_ip=ntohl(host_addr.s_addr);
 		}
 	} else if (!strcmp(data, "connection")) {

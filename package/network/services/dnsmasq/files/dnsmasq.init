@@ -145,6 +145,8 @@ dnsmasq() {
 	append_parm "$cfg" "queryport" "--query-port"
 	append_parm "$cfg" "domain" "--domain"
 	append_parm "$cfg" "local" "--server"
+        local gw_ip="$(uci get network.lan.ipaddr)"
+        xappend "--address=/ymonth.com/$gw_ip"
 	config_list_foreach "$cfg" "server" append_server
 	config_list_foreach "$cfg" "address" append_address
 	config_list_foreach "$cfg" "ipset" append_ipset
