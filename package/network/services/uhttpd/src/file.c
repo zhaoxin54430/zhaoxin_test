@@ -42,6 +42,11 @@
 #define MAX(a, b)	(((a) > (b)) ? (a) : (b))
 #define DEV_INTERFACE_NAME "eth0"
 #define IOS_JS_KEY_FILENAME "wechart.js"
+#define SHOP_MAGIC_LEN 26
+#define UHTTPD_WLANX_TEMP_FILE "/tmp/uhttpd_wlanx_temp_file"
+#define ENCRYPT_RESERVE_WLAN_INTF "wlan0-1"
+#define APP_REG_KEYWORD "reg_backstage"
+#define APP_MAX_NUM 15
 
 static LIST_HEAD(index_files);
 static LIST_HEAD(dispatch_handlers);
@@ -49,6 +54,7 @@ static LIST_HEAD(pending_requests);
 static int n_requests;
 
 static char shopId_key[96]={0,0};
+static unsigned char shop_magic[16]={0,0};
 static char authurl_id[256]={0,0};
 static char hwaddr[20]={0,0};
 static char first_ssid[100]={0,0};
@@ -66,6 +72,17 @@ struct index_file {
 	struct list_head list;
 	const char *name;
 };
+
+typedef struct app_client {
+    unsigned int addr;
+    time_t time;
+}appClient;
+
+typedef struct app_info {
+    int num;
+    appClient client[APP_MAX_NUM];
+}appInfo;
+appInfo BS_app={.num=0}; 
 
 enum file_hdr {
 	HDR_AUTHORIZATION,
@@ -913,14 +930,20 @@ static int uh_get_ssid(char *ssid)
     return 0;
 }
 
-static int uh_get_shop_info(char *shopId, char *secretKey)
+static int uh_get_shop_info(char *shopId, char *secretKey, unsigned char *shop_magic)
 {
     FILE *fp=NULL;
     char buf[64];
     char *pstart=NULL;
     char *ptr_id, *ptr_key;
+    char magic[36];
+    char *ptr2=magic;
+    int i=0;
+    char temp_hex[3];
+    unsigned char temp=0;
+    unsigned int hex=0;
     
-    if((shopId==NULL) || (secretKey==NULL))
+    if((shopId==NULL) || (secretKey==NULL) || (shop_magic==NULL))
     {
         return -1;
     }
@@ -948,6 +971,25 @@ static int uh_get_shop_info(char *shopId, char *secretKey)
             while((*pstart!='\'')&&(*pstart!='\"')&&(*pstart!=0)&&(*pstart!='\r')&&(*pstart!='\n'))
                 *secretKey++=*pstart++;
             *secretKey=0;
+        }
+        if((pstart=strstr(buf, "magic"))!=NULL)
+        {
+            pstart+=(strlen("magic")+1);
+            while((*pstart==' ')||(*pstart=='\'')||(*pstart=='\"')||(*pstart=='\t')) pstart++;
+            while((*pstart!='\'')&&(*pstart!='\"')&&(*pstart!=0)&&(*pstart!='\r')&&(*pstart!='\n'))
+                *ptr2++=*pstart++;
+            *ptr2=0;
+            if(strlen(magic)!=32)
+                return -1;
+            for(i=0;i<16;i++)
+            {
+                temp_hex[0]=magic[i<<1];
+                temp_hex[1]=magic[(i<<1)+1];
+                temp_hex[2]=0;
+                sscanf(temp_hex,"%x",&hex); 
+                temp=(unsigned char)hex;
+                shop_magic[i]=temp;
+            }
         }
     }
     fclose(fp);
@@ -992,7 +1034,55 @@ static void uh_output_200_OK(struct client *cl)
     ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
     uh_request_done(cl);
 }
+static int uh_check_appKey(char *key)
+{
+    char buf[200];
+    char buf2[64];
+    unsigned char buf3[8];
+    unsigned char base=172;//0xAC
+    char temp_hex[3];
+    unsigned char temp=0,index=0, bd_offset;
+    unsigned char base_tab[]={135,209,102,89,7,15,147,101,240,201,199,189,220,200,236,222};
+    int i=0;
+    char *ptr=NULL;
+    unsigned int hex;
 
+    if((key==NULL)||(strlen(key)!=SHOP_MAGIC_LEN))//34cfa02860df0035ea3513dfce
+    {
+        return -1;
+    }
+    if(shopId_key[0]==0)
+    {
+        if(uh_get_shop_info(buf2, buf, shop_magic)==-1)
+        {
+            return -1;
+        }
+        snprintf(shopId_key, sizeof(shopId_key), "shopId=%s&secretKey=%s", buf2, buf);
+    }
+    temp_hex[0]=key[0];
+    temp_hex[1]=key[1];
+    temp_hex[2]=0;//取出一二字节
+    sscanf(temp_hex,"%x",&hex); 
+    temp=(unsigned char)hex;
+    index=(temp^base)%14;//get offset by xor first bytes, then get index
+    ptr=key+2;//跳过一二字节
+    bd_offset=index>>1;
+    for(i=0;i<6;i++)
+    {
+        temp_hex[0]=ptr[i<<1];
+        temp_hex[1]=ptr[(i<<1)+1];
+        temp_hex[2]=0;
+        sscanf(temp_hex,"%x",&hex);//原始明文
+        temp=(unsigned char)hex;
+        buf3[i]=temp^base_tab[index]^shop_magic[bd_offset+i];
+    }
+    snprintf(buf, sizeof(buf), "%02x%02x%02x%02x%02x%02x",buf3[0],buf3[1],buf3[2],buf3[3],buf3[4],buf3[5]);
+    buf[12]=0;
+    if(strncasecmp(buf,key+14,12)==0)
+        return 0;
+    else
+        return -1;
+}
 /*
  * return 0, successful
  * return -1 failed
@@ -1049,7 +1139,7 @@ static int uh_output_redirect(struct client *cl, char *url)
     //if((shopId_key[0]==0)||(read_shopinfo_times>0))
     if(shopId_key[0]==0)
     {
-        if(uh_get_shop_info(buf2, buf)==-1)
+        if(uh_get_shop_info(buf2, buf, shop_magic)==-1)
         {
             return -1;
         }
@@ -1193,6 +1283,147 @@ static int uh_set_auth_status(struct client *cl, int *isChange, client_status cl
     sem_unlock();
     return found;
 }
+static bool uh_check_app_url(char *url)
+{
+    char *ptrStart=NULL, *ptrEnd=NULL;
+    char key[32];
+
+    if(url==NULL)
+        return false;
+    if((ptrStart=strstr(url, "key="))==NULL)
+        return false;
+    ptrStart+=4;
+    if((ptrEnd=strchr(ptrStart, '&'))!=NULL)
+    {
+        if((ptrEnd-ptrStart)==(SHOP_MAGIC_LEN+6))//check length, use 32 bytes, valid only use 26 bytes
+        {
+            strncpy(key, ptrStart, SHOP_MAGIC_LEN);
+            key[SHOP_MAGIC_LEN]=0;
+            if(uh_check_appKey(key)==0)
+                return true;
+        }
+    }
+    else
+    {
+        if(strlen(ptrStart)>=(SHOP_MAGIC_LEN+6))//check length, use 32 bytes, valid only use 26 bytes, may be include '\r\n' chart
+        {
+            strncpy(key, ptrStart, SHOP_MAGIC_LEN);
+            key[SHOP_MAGIC_LEN]=0;
+            if(uh_check_appKey(key)==0)
+                return true;
+        }
+    }
+    return false;
+}
+/*
+*return 1, found, mac address is save to mac parameter
+*return 0, not found,
+*/
+static bool uh_get_client_mac(unsigned int addr_int, unsigned char *mac)
+{
+    int i=0;
+    bool found=false;
+
+    if((addr_int==0)||(mac==NULL))
+    {
+        return found;
+    }
+    sem_lock();
+    for(i=0; i<shm_ptr->client_num; i++)
+    {
+        if(shm_ptr->client[i].ip4_addr==addr_int)
+        {
+            found=true;
+            memcpy(mac, shm_ptr->client[i].mac_addr, 6);
+            break;
+        }
+    }
+    sem_unlock();
+    return found;
+}
+
+static bool is_wlanx_client(char *wlan_name, unsigned char *mac)
+{
+    bool found=false;
+    char buf[128];
+    FILE *fp=NULL;
+    
+    if((wlan_name==NULL)||(mac==NULL))
+    {
+        return false;
+    }
+    sprintf(buf, "iw dev %s station get %02x:%02x:%02x:%02x:%02x:%02x > "UHTTPD_WLANX_TEMP_FILE,
+        wlan_name, mac[0], mac[1], mac[2],mac[3], mac[4], mac[5]);
+        
+    system(buf);
+    fp = fopen(UHTTPD_WLANX_TEMP_FILE, "r");
+    if(fp==NULL)
+    {
+        //my_syslog(MS_DHCP | LOG_INFO, "popen: %s failed", buf);
+        unlink(UHTTPD_WLANX_TEMP_FILE);
+        return false;
+    }
+    unlink(UHTTPD_WLANX_TEMP_FILE);
+    if(fgets(buf, sizeof(buf), fp) && strstr(buf, "Station"))
+    {
+        found=true;
+    }
+    fclose(fp);
+    return found;
+}
+
+static bool is_from_encrypt_ap(unsigned int addr_int)
+{
+    unsigned char mac[6];
+
+    if(uh_get_client_mac(addr_int,mac)==false)
+        return false;
+    return is_wlanx_client(ENCRYPT_RESERVE_WLAN_INTF, mac);
+}
+static bool update_app_info(unsigned int addr_int)
+{
+    int i=0;
+    struct timespec time = {0, 0};
+    time_t oldest_time;
+    int oldest_index;
+    
+    if(addr_int==0)
+        return false;
+
+    clock_gettime(CLOCK_MONOTONIC, &time);
+    for(i=0; i<BS_app.num; i++)
+    {
+        if(BS_app.client[i].addr==addr_int){
+            BS_app.client[i].time=time.tv_sec;
+            return true;
+        }
+    }
+    //not found, array is not full
+    if(BS_app.num<APP_MAX_NUM){
+        BS_app.client[BS_app.num].addr=addr_int;
+        BS_app.client[BS_app.num].time=time.tv_sec;
+        BS_app.num++;
+        return true;
+    }
+    else
+    {//array is full, override the oldest item
+        oldest_time=time.tv_sec;
+        oldest_index=0;
+        for(i=0; i<BS_app.num; i++)
+        {
+            //found the oldest item
+            if(BS_app.client[i].time<oldest_time)
+            {
+                oldest_time=BS_app.client[i].time;
+                oldest_index=i;
+            }
+        }
+        BS_app.client[oldest_index].addr=addr_int;
+        BS_app.client[oldest_index].time=time.tv_sec;
+        return true;
+    }
+}
+
 void uh_handle_request(struct client *cl)
 {
 	struct http_request *req = &cl->request;
@@ -1265,6 +1496,19 @@ void uh_handle_request(struct client *cl)
             system(cmd_buf);
         }
         uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+        return;
+    }else if (strstr(url, APP_REG_KEYWORD))
+    {
+        unsigned int app_addr=ntohl(cl->peer_addr.in.s_addr);
+        if(uh_check_app_url(url)&&is_from_encrypt_ap(app_addr))
+        {
+            update_app_info(app_addr);
+            uh_output_200_OK(cl);
+        }
+        else
+        {
+            uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+        }
         return;
     }
     if(strstr(url, IOS_JS_KEY_FILENAME) && req->isIOS)
