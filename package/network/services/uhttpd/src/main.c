@@ -209,6 +209,7 @@ void signal_alarm_fn(int sig)
     char cmd_buf[128];
     sprintf(cmd_buf,"/etc/t_gate stop");
     system(cmd_buf);
+    system("killall close_tgate");
     return;
 }
 static void shmem_init()

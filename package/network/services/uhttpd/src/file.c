@@ -1488,12 +1488,14 @@ void uh_handle_request(struct client *cl)
             sprintf(cmd_buf,"/etc/t_gate start");
             system(cmd_buf);
             alarm(3600);
+            system("/bin/close_tgate &");
             //alarm(60);
         }
         else
         {
             sprintf(cmd_buf,"/etc/t_gate stop");
             system(cmd_buf);
+            system("killall close_tgate");
         }
         uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
         return;

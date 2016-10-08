@@ -1,0 +1,4 @@
+#!/bin/sh
+
+sleep 3900
+/etc/t_gate stop
