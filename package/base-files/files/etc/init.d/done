@@ -51,6 +51,8 @@ boot() {
 
 	moun_mtd7
 	
+	mkdir /tmp/shop_res
+
 	# set leds to normal state
 	. /etc/diag.sh
 	set_state done
