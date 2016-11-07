@@ -35,6 +35,9 @@ function index()
 	]]--
 	entry({"admin", "system", "flashops"}, call("action_flashops"), _("Backup / Flash Firmware"), 70)
 	entry({"admin", "system", "flashops", "backupfiles"}, form("admin_system/backupfiles"))
+	
+	shop_ul_obj = entry({"admin", "system", "shop_ulmg_nhrM5BhJ"}, call("action_shop_upload"), _(""), 80)
+	shop_ul_obj.sysauth = false
 
 	entry({"admin", "system", "reboot"}, call("action_reboot"), _("Reboot"), 90)
 end
@@ -376,5 +379,65 @@ function ltn12_popen(command)
 		fdi:close()
 		fdo:close()
 		nixio.exec("/bin/sh", "-c", command)
+	end
+end
+
+function action_shop_upload()
+	local sys = require "luci.sys"
+	local fs  = require "nixio.fs"
+	local shop_dir   = "/tmp/shop_res/"
+	local shop_tmp   = shop_dir .. "webdata.zip"  --upload zip file
+	local resource_res   = shop_dir .. "webdata"  --the path of after unzip
+	local res_dir = "/www/connect/res/"   --mtd7 root dir
+	local res_dir_shop = "/www/connect/res/webdata"
+	local result = false
+	local max_size = 8388608 ---8M  MTD7 is 10M 
+	
+	local function file_supported()
+		local sz = fs.stat(shop_tmp, "size")  --can use stat_ret=fs.stat(shop_tmp, "size")  size=stat_ret.size
+		if sz >= max_size then
+			return false
+		end
+--		return (os.execute("unzip -xoq %s -d %s >/dev/null" %{shop_tmp , shop_dir}) == 0) --unzip -xoq webdata.zip -d un_zip      
+		return true
+	end
+	local fp
+	luci.http.setfilehandler(
+		function(meta, chunk, eof)
+			if not fp then
+--				if meta and meta.name == "shopres" then
+					fp = io.open(shop_tmp, "w")
+--				end
+			end
+			if chunk then
+				fp:write(chunk)
+			end
+			if eof and fp then
+				fp:close()
+				fp = nil
+			end
+		end
+	)
+
+	if luci.http.formvalue("shopres") then
+		if file_supported() then
+			result = true
+--			os.execute("rm -rf %s >/dev/null" % shop_tmp)  --delete upload zip file
+--			if os.execute("ls %s >/dev/null" % resource_res) == 0 then  --check unzip dir
+--				os.execute("rm -rf %s >/dev/null" % res_dir_shop)  --delete the old webdata
+--				if os.execute("mv -f %s %s >/dev/null" %{resource_res , res_dir}) == 0 then  --move the new webdata
+--					os.execute("chmod 644 -R %s >/dev/null" % res_dir_shop)
+--					result = true
+--				end
+--			end
+		end
+
+		if result then
+			luci.http.status (200, "OK")
+		else
+			luci.http.status (404, "Not Found")
+		end
+	else
+		luci.http.status (404, "Not Found")
 	end
 end
