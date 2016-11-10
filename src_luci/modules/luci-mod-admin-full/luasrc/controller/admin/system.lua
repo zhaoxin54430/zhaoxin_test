@@ -398,8 +398,7 @@ function action_shop_upload()
 		if sz >= max_size then
 			return false
 		end
---		return (os.execute("unzip -xoq %s -d %s >/dev/null" %{shop_tmp , shop_dir}) == 0) --unzip -xoq webdata.zip -d un_zip      
-		return true
+		return (os.execute("unzip -xoq %s -d %s >/dev/null" %{shop_tmp , shop_dir}) == 0) --unzip -xoq webdata.zip -d un_zip      
 	end
 	local fp
 	luci.http.setfilehandler(
@@ -421,23 +420,35 @@ function action_shop_upload()
 
 	if luci.http.formvalue("shopres") then
 		if file_supported() then
-			result = true
---			os.execute("rm -rf %s >/dev/null" % shop_tmp)  --delete upload zip file
---			if os.execute("ls %s >/dev/null" % resource_res) == 0 then  --check unzip dir
---				os.execute("rm -rf %s >/dev/null" % res_dir_shop)  --delete the old webdata
---				if os.execute("mv -f %s %s >/dev/null" %{resource_res , res_dir}) == 0 then  --move the new webdata
---					os.execute("chmod 644 -R %s >/dev/null" % res_dir_shop)
---					result = true
---				end
---			end
+			os.execute("rm -rf %s >/dev/null" % shop_tmp)  --delete upload zip file
+			if os.execute("ls %s >/dev/null" % resource_res) == 0 then  --check unzip dir
+				os.execute("rm -rf %s >/dev/null" % res_dir_shop)  --delete the old webdata
+				if os.execute("mv -f %s %s >/dev/null" %{resource_res , res_dir}) == 0 then  --move the new webdata
+					os.execute("chmod 644 -R %s >/dev/null" % res_dir_shop)
+					result = true
+				end
+			end
 		end
 
 		if result then
 			luci.http.status (200, "OK")
+--			luci.template.render("admin_system/shop_ulmg_nhrM5BhJ", {
+--				upgrade_avail = true ,
+--				success = true
+--			})
 		else
 			luci.http.status (404, "Not Found")
+			luci.http.write ("<h1>Not Found</h1>The requested URL /cgi-bin/luci/admin/system/shop_ulmg_nhrM5BhJ was not found on this server.")
+--			luci.template.render("admin_system/shop_ulmg_nhrM5BhJ", {
+--				upgrade_avail = true ,
+--				image_invalid = true
+--			})
 		end
 	else
 		luci.http.status (404, "Not Found")
+		luci.http.write ("<h1>Not Found</h1>The requested URL /cgi-bin/luci/admin/system/shop_ulmg_nhrM5BhJ was not found on this server.")
+--		luci.template.render("admin_system/shop_ulmg_nhrM5BhJ", {
+--				upgrade_avail = true
+--		})
 	end
 end
