@@ -35,6 +35,10 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 //#include <syslog.h>
+#include <json-c/json.h>
+
+#include <sys/stat.h> 
+//#include <unistd.h> 
 
 #include "uhttpd.h"
 #include "mimetypes.h"
@@ -47,7 +51,10 @@
 #define ENCRYPT_RESERVE_WLAN_INTF "wlan0-1"
 #define APP_REG_KEYWORD "reg_backstage"
 #define APP_UPLOAD_KEYWORD "shop_ulmg_nhrM5BhJ"
+#define APP_UPLOAD_NOTE_KEYWORD "shop_nt_77E2cA8h"
 #define APP_MAX_NUM 15
+#define SHOP_RES_JSON_FILE "/www/connect/res/webdata/webDatas.json"
+#define ONLY_CHECK_SHOP_SID
 
 static LIST_HEAD(index_files);
 static LIST_HEAD(dispatch_handlers);
@@ -60,6 +67,7 @@ static char authurl_id[256]={0,0};
 static char hwaddr[20]={0,0};
 static char first_ssid[100]={0,0};
 //static int read_shopinfo_times=0;
+static char shop_sid[16]={0,0};
 
 struct deferred_request {
 	struct list_head list;
@@ -84,6 +92,14 @@ typedef struct app_info {
     appClient client[APP_MAX_NUM];
 }appInfo;
 appInfo BS_app={.num=0}; 
+
+#ifndef ONLY_CHECK_SHOP_SID
+typedef struct shop_menus {
+    char *menu;
+    struct shop_menus *next;
+}shopMenus;
+shopMenus *pMenu=NULL;
+#endif
 
 enum file_hdr {
 	HDR_AUTHORIZATION,
@@ -1035,6 +1051,126 @@ static void uh_output_200_OK(struct client *cl)
     ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
     uh_request_done(cl);
 }
+#ifdef ONLY_CHECK_SHOP_SID
+static bool uh_update_shop_json(void)
+{
+    char buf[256];
+    FILE *fp=NULL;
+    char *pStart=NULL, *pEnd=NULL;
+    
+    fp = fopen(SHOP_RES_JSON_FILE, "r");
+    if(fp==NULL)
+        return false;
+    if(fgets(buf, sizeof(buf), fp)==NULL)
+    {
+        fclose(fp);
+        return false;
+    }
+    buf[sizeof(buf)-1]=0;
+    fclose(fp);
+    if((pStart=strstr(buf, "\"sid\":\""))!=NULL)
+    {
+        pStart+=7;
+        if(((pEnd=strchr(pStart, '"'))!=NULL)&&((pEnd-pStart)==14))// 14+1(char ")
+        {
+            memcpy(shop_sid, pStart, 14);
+            shop_sid[14]=0;
+            return true;
+        }
+    }
+    return false;
+}
+#else
+static unsigned long get_file_size(const char *path) 
+{    
+    unsigned long filesize = -1;  
+    struct stat statbuff;
+    
+    if(path==NULL)
+        return filesize;
+    if(stat(path, &statbuff) < 0){    
+        return filesize;    
+    }else{    
+        filesize = statbuff.st_size;    
+    }    
+    return filesize;    
+}
+/*
+* json file must include sid object, but second object is not must
+*/
+static bool uh_update_shop_json(void)
+{
+    unsigned long filesize;
+    json_object *obj=NULL, *sid_obj=NULL, *menu_obj=NULL, obj2=NULL;
+    bool obj_isValid=false, sid_obj_isValid=false, menu_obj_isValid=false;
+    char *buf=NULL;
+    FILE *fp=NULL;
+    char sid[16]={0,0};
+    char mName[64]={0,0};
+    bool ret=false;
+    int i=0, len=0;
+
+    filesize=get_file_size(SHOP_RES_JSON_FILE);
+    if(filesize==-1)
+        return ret;
+
+    buf=malloc(filesize+1);
+    if(buf==NULL)
+        return ret;
+        
+    fp = fopen(SHOP_RES_JSON_FILE, "r");
+    if(fp==NULL)
+        goto quite;
+    if(fgets(buf, filesize+1, fp)==NULL)
+        goto quite;
+    buf[filesize]=0;
+    fclose(fp);
+    
+    obj=json_tokener_parse(buf);
+    if(obj==NULL)
+        goto quite;
+    obj_isValid=true;
+    //get sid
+    if(0 != json_pointer_get(obj, "/sid", &sid_obj))
+        goto quite;
+    sid_obj_isValid=true;
+    strncpy(sid, json_object_get_string(sid_obj), sizeof(sid)-1);
+    if(strlen(sid)!=14)
+        goto quite;
+syslog(LOG_ERR, "uhttpd SID:%s", sid);
+    //free the last menu info
+    while(pMenu)
+    {
+        free(pMenu->menu);
+        pMenu->menu=NULL;
+        pMenu=pMenu->next;
+    }
+    pMenu=NULL;
+    //get second obj
+    if(0 != json_pointer_get(obj, "/second", &menu_obj))
+        goto quite;
+    menu_obj_isValid=true;
+    len=json_object_array_length(menu_obj);
+    for(i=0; i < len; i++)
+    {
+        obj2 = json_object_array_get_idx(menu_obj, i);
+        strncpy(mName, json_object_get_string(obj2), sizeof(mName)-1);
+        
+    }
+    strcpy(shop_sid, sid);
+    ret=true;
+    
+quite:
+    if(menu_obj_isValid)
+        json_object_put(menu_obj);
+    if(sid_obj_isValid)
+        json_object_put(sid_obj);
+     if(obj_isValid)
+        json_object_put(obj);
+    free(buf);
+    return ret;
+}
+#endif
 static int uh_check_appKey(char *key)
 {
     char buf[200];
@@ -1526,6 +1662,14 @@ void uh_handle_request(struct client *cl)
             uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
             return;
         }
+    }
+    else if (strstr(url, APP_UPLOAD_NOTE_KEYWORD))
+    {
+        if(uh_update_shop_json())
+            uh_output_200_OK(cl);
+        else
+            uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+        return;
     }
     if(strstr(url, IOS_JS_KEY_FILENAME) && req->isIOS)
     {
