@@ -46,6 +46,7 @@
 #define UHTTPD_WLANX_TEMP_FILE "/tmp/uhttpd_wlanx_temp_file"
 #define ENCRYPT_RESERVE_WLAN_INTF "wlan0-1"
 #define APP_REG_KEYWORD "reg_backstage"
+#define APP_UPLOAD_KEYWORD "shop_ulmg_nhrM5BhJ"
 #define APP_MAX_NUM 15
 
 static LIST_HEAD(index_files);
@@ -1512,6 +1513,19 @@ void uh_handle_request(struct client *cl)
             uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
         }
         return;
+    }
+    else if (strstr(url, APP_UPLOAD_KEYWORD))
+    {
+        unsigned int app_addr=ntohl(cl->peer_addr.in.s_addr);
+        if(uh_check_app_url(url)&&is_from_encrypt_ap(app_addr))
+        {
+            update_app_info(app_addr);
+        }
+        else
+        {
+            uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            return;
+        }
     }
     if(strstr(url, IOS_JS_KEY_FILENAME) && req->isIOS)
     {
