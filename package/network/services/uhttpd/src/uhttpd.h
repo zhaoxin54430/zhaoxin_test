@@ -47,6 +47,7 @@
 #define REQUEST_SUCCESS_TOKEN "request_success_connect"
 #define APP_MAX_NUM 32
 #define NOTFIY_APP_UDP_PORT 4274
+#define ACAO_FILE_NAME  "webDatas.json"  //Access-Control-Allow-Origin file name
 //#define ENABLE_MYUHTTPD_SYSLOG
 #if 0
 #ifdef ENABLE_MYUHTTPD_SYSLOG
@@ -138,6 +139,7 @@ struct http_request {
 	bool connection_close;
 	bool disable_chunked;
 	bool isIOS;
+	bool isCorAcs;
 	uint8_t transfer_chunked;
 	uint32_t host_ip;
 	const struct auth_realm *realm;

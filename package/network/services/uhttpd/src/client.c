@@ -65,6 +65,9 @@ void uh_http_header(struct client *cl, int code, const char *summary)
 
 	if (!r->connection_close)
 		ustream_printf(cl->us, "Keep-Alive: timeout=%d\r\n", conf.http_keepalive);
+
+	if (r->isCorAcs)
+		ustream_printf(cl->us, "Access-Control-Allow-Origin: *\r\n");
 }
 
 static void uh_connection_close(struct client *cl)
@@ -187,6 +190,10 @@ static int client_parse_request(struct client *cl, char *data)
 	req->version = h_version;
 	req->host_ip=0;
 	req->isIOS=false;
+	if(strstr(path, ACAO_FILE_NAME))
+	    req->isCorAcs=true;
+	else
+	    req->isCorAcs=false;
 	if (req->version < UH_HTTP_VER_1_1 || req->method == UH_HTTP_MSG_POST ||
 	    !conf.http_keepalive)
 		req->connection_close = true;
