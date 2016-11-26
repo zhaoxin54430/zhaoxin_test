@@ -52,6 +52,7 @@
 #define APP_REG_KEYWORD "reg_backstage"
 #define APP_UPLOAD_KEYWORD "shop_ulmg_nhrM5BhJ"
 #define APP_UPLOAD_NOTE_KEYWORD "shop_nt_77E2cA8h"
+#define SHOP_SID_LEN 14
 #define APP_MAX_NUM 15
 #define SHOP_RES_JSON_FILE "/www/connect/res/webdata/webDatas.json"
 #define ONLY_CHECK_SHOP_SID
@@ -67,7 +68,7 @@ static char authurl_id[256]={0,0};
 static char hwaddr[20]={0,0};
 static char first_ssid[100]={0,0};
 //static int read_shopinfo_times=0;
-static char shop_sid[16]={0,0};
+static char shop_sid[SHOP_SID_LEN+1]={0,0};
 
 struct deferred_request {
 	struct list_head list;
@@ -1052,7 +1053,7 @@ static void uh_output_200_OK(struct client *cl)
     uh_request_done(cl);
 }
 #ifdef ONLY_CHECK_SHOP_SID
-static bool uh_update_shop_json(void)
+bool uh_update_shop_json(void)
 {
     char buf[256];
     FILE *fp=NULL;
@@ -1071,10 +1072,10 @@ static bool uh_update_shop_json(void)
     if((pStart=strstr(buf, "\"sid\":\""))!=NULL)
     {
         pStart+=7;
-        if(((pEnd=strchr(pStart, '"'))!=NULL)&&((pEnd-pStart)==14))// 14+1(char ")
+        if(((pEnd=strchr(pStart, '"'))!=NULL)&&((pEnd-pStart)==SHOP_SID_LEN))// 14
         {
-            memcpy(shop_sid, pStart, 14);
-            shop_sid[14]=0;
+            memcpy(shop_sid, pStart, SHOP_SID_LEN);
+            shop_sid[SHOP_SID_LEN]=0;
             return true;
         }
     }
@@ -1098,7 +1099,7 @@ static unsigned long get_file_size(const char *path)
 /*
 * json file must include sid object, but second object is not must
 */
-static bool uh_update_shop_json(void)
+bool uh_update_shop_json(void)
 {
     unsigned long filesize;
     json_object *obj=NULL, *sid_obj=NULL, *menu_obj=NULL, obj2=NULL;

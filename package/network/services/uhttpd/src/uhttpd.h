@@ -354,4 +354,5 @@ static inline void uh_client_unref(struct client *cl)
 		ustream_state_change(cl->us);
 }
 void signal_usr1_fn(int sig);
+bool uh_update_shop_json(void);
 #endif
