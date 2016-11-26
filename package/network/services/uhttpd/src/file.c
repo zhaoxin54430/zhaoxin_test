@@ -36,6 +36,7 @@
 #include <sys/ioctl.h>
 //#include <syslog.h>
 #include <json-c/json.h>
+#include <pthread.h>
 
 #include <sys/stat.h> 
 //#include <unistd.h> 
@@ -53,7 +54,7 @@
 #define APP_UPLOAD_KEYWORD "shop_ulmg_nhrM5BhJ"
 #define APP_UPLOAD_NOTE_KEYWORD "shop_nt_77E2cA8h"
 #define SHOP_SID_LEN 14
-#define APP_MAX_NUM 15
+#define ORDER_COMMIT_KEYWORD "onlineorderlist"
 #define SHOP_RES_JSON_FILE "/www/connect/res/webdata/webDatas.json"
 #define ONLY_CHECK_SHOP_SID
 
@@ -81,18 +82,7 @@ struct deferred_request {
 struct index_file {
 	struct list_head list;
 	const char *name;
-};
-
-typedef struct app_client {
-    unsigned int addr;
-    time_t time;
-}appClient;
-
-typedef struct app_info {
-    int num;
-    appClient client[APP_MAX_NUM];
-}appInfo;
-appInfo BS_app={.num=0}; 
+}; 
 
 #ifndef ONLY_CHECK_SHOP_SID
 typedef struct shop_menus {
@@ -101,6 +91,12 @@ typedef struct shop_menus {
 }shopMenus;
 shopMenus *pMenu=NULL;
 #endif
+
+typedef struct order_list {
+    struct order_list *next;
+    char order[0];
+}orderList;
+orderList *pOrder=NULL;
 
 enum file_hdr {
 	HDR_AUTHORIZATION,
@@ -1453,6 +1449,41 @@ static bool uh_check_app_url(char *url)
     }
     return false;
 }
+static bool uh_append_order(char *url)
+{
+    char *ptrStart=NULL, *pSid=NULL;
+    int len=0;
+    orderList *item=NULL, *ptr=NULL;
+
+    if(url==NULL)
+        return false;
+    if((ptrStart=strchr(url, '?'))==NULL)
+        return false;
+    ptrStart++;
+    if((pSid=strstr(ptrStart, "sid="))==NULL)
+        return false;
+    pSid+=4;
+    if(strncmp(pSid, shop_sid, SHOP_SID_LEN)!=0)
+        return false;
+    len=strlen(ptrStart);
+        
+    item=(orderList *)malloc(sizeof(orderList)+len+1);
+    if(item==NULL)
+        return false;
+    item->next=NULL;
+    strcpy(item->order, ptrStart);
+    item->order[len]=0;
+    if(pOrder==NULL)
+        pOrder=item;
+    else
+    {
+        ptr=pOrder;
+        while(ptr->next)
+            ptr=ptr->next;
+        ptr->next=item;
+    }
+    return true;
+}
 /*
 *return 1, found, mac address is save to mac parameter
 *return 0, not found,
@@ -1529,10 +1560,12 @@ static bool update_app_info(unsigned int addr_int)
         return false;
 
     clock_gettime(CLOCK_MONOTONIC, &time);
+    pthread_mutex_lock(&notiy_mutex);
     for(i=0; i<BS_app.num; i++)
     {
         if(BS_app.client[i].addr==addr_int){
             BS_app.client[i].time=time.tv_sec;
+            pthread_mutex_unlock(&notiy_mutex);
             return true;
         }
     }
@@ -1541,6 +1574,7 @@ static bool update_app_info(unsigned int addr_int)
         BS_app.client[BS_app.num].addr=addr_int;
         BS_app.client[BS_app.num].time=time.tv_sec;
         BS_app.num++;
+        pthread_mutex_unlock(&notiy_mutex);
         return true;
     }
     else
@@ -1558,8 +1592,10 @@ static bool update_app_info(unsigned int addr_int)
         }
         BS_app.client[oldest_index].addr=addr_int;
         BS_app.client[oldest_index].time=time.tv_sec;
+        pthread_mutex_unlock(&notiy_mutex);
         return true;
     }
+    pthread_mutex_unlock(&notiy_mutex);
 }
 
 void uh_handle_request(struct client *cl)
@@ -1668,6 +1704,18 @@ void uh_handle_request(struct client *cl)
     {
         if(uh_update_shop_json())
             uh_output_200_OK(cl);
+        else
+            uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+        return;
+    }
+    else if (strstr(url, ORDER_COMMIT_KEYWORD))
+    {
+        if(uh_append_order(url))
+        {
+            uh_output_200_OK(cl);
+//only for test
+            pthread_cond_signal(&notiy_cond);
+        }
         else
             uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
         return;

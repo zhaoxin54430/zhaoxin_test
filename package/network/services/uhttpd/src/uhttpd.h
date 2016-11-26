@@ -45,6 +45,8 @@
 #define RES_CON_AUTH_PAGE "connect/res/webs/index.html"
 #define REQUEST_CON_TOKEN "request_connect_allow"
 #define REQUEST_SUCCESS_TOKEN "request_success_connect"
+#define APP_MAX_NUM 32
+#define NOTFIY_APP_UDP_PORT 4274
 //#define ENABLE_MYUHTTPD_SYSLOG
 #if 0
 #ifdef ENABLE_MYUHTTPD_SYSLOG
@@ -276,6 +278,15 @@ struct client {
 	struct blob_buf hdr;
 	struct dispatch dispatch;
 };
+typedef struct app_client {
+    unsigned int addr;
+    time_t time;
+}appClient;
+
+typedef struct app_info {
+    int num;
+    appClient client[APP_MAX_NUM];
+}appInfo;
 
 extern char uh_buf[4096];
 extern int n_clients;
@@ -284,6 +295,9 @@ extern const char * const http_versions[];
 extern const char * const http_methods[];
 extern struct dispatch_handler cgi_dispatch;
 extern all_client_info *shm_ptr;
+extern pthread_mutex_t notiy_mutex;
+extern pthread_cond_t  notiy_cond;
+extern appInfo BS_app;
 
 void uh_index_add(const char *filename);
 

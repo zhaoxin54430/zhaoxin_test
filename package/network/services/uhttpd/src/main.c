@@ -28,6 +28,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <signal.h>
+#include <pthread.h>
 
 #include <libubox/usock.h>
 
@@ -39,6 +40,10 @@
 #endif
 
 char uh_buf[4096];
+
+pthread_mutex_t notiy_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t  notiy_cond = PTHREAD_COND_INITIALIZER;//init cond
+appInfo BS_app={.num=0};
 
 all_client_info *shm_ptr=NULL;
 void signal_alarm_fn(int sig);
@@ -242,6 +247,111 @@ static void shmem_init()
     if(access("/etc/output_dnsmasq_shmem_log", F_OK)==0)
         output_dnsmasq_shmem_log=1;
 #endif        
+}
+#if 0
+static void *notify_app_thread(void *arg) 
+{
+syslog(LOG_ERR, "uhttpd: start notify app thread");
+    struct in_addr ip_addr;
+    struct sockaddr_in addr;
+    int sockfd;   
+    char buffer[8];
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        perror("create notify app thread socket failed");
+        pthread_exit(NULL);
+    }
+
+    while(true)
+    {
+        pthread_mutex_lock(&notiy_mutex);
+        pthread_cond_wait(&notiy_cond,&notiy_mutex); //wait
+syslog(LOG_ERR, "uhttpd: notify app thread wake up");
+        pthread_mutex_unlock(&notiy_mutex);
+        memset(&addr, 0, sizeof(struct sockaddr_in));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(NOTFIY_APP_UDP_PORT);
+        memcpy(&(addr.sin_addr), &ip_addr, sizeof(addr.sin_addr));
+        sendto(sockfd, buffer, sizeof(buffer)-1, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
+    }
+  
+    pthread_exit(NULL);
+}
+#else
+/*
+send method
+pthread_mutex_lock(&notiy_mutex); 
+notify_ip=....(memcpy(&notify_ip, xxxx, sizeof(notify_ip)))  //modify notify_ip variable value
+pthread_mutex_unlock(&notiy_mutex);
+pthread_cond_signal(&notiy_cond); //send sianal
+*/
+static void *notify_app_thread(void *arg) 
+{
+    appInfo app_list;
+    struct sockaddr_in addr;
+    int sockfd; 
+    char buffer[8];
+    uint16_t rand_num;
+    int up, down;
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        perror("create notify app thread socket failed");
+        pthread_exit(NULL);
+    }
+    srand((unsigned int)time(NULL));
+
+    while(true)
+    {
+        pthread_mutex_lock(&notiy_mutex);
+        pthread_cond_wait(&notiy_cond,&notiy_mutex); //wait
+        memcpy(&app_list, &BS_app, sizeof(appInfo));
+//syslog(LOG_ERR, "uhttpd: notify app thread wake up");
+        pthread_mutex_unlock(&notiy_mutex);
+        if(app_list.num<=0)
+            continue;
+        //send udp notify
+        rand_num=(uint16_t)rand();
+        rand_num=rand_num%app_list.num;//rand_num range is: 0 <= rand_num < app_list.num
+        up=rand_num+1;
+        down=rand_num;
+        while((down>=0)||(up<app_list.num))
+        {
+            if(down>=0)
+            {
+                memset(&addr, 0, sizeof(struct sockaddr_in));
+                addr.sin_family = AF_INET;
+                addr.sin_port = htons(NOTFIY_APP_UDP_PORT);
+                addr.sin_addr.s_addr=htonl(app_list.client[down].addr);
+                sendto(sockfd, buffer, sizeof(buffer)-1, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
+                down--;
+            }
+            if(up<app_list.num)
+            {
+                memset(&addr, 0, sizeof(struct sockaddr_in));
+                addr.sin_family = AF_INET;
+                addr.sin_port = htons(NOTFIY_APP_UDP_PORT);
+                addr.sin_addr.s_addr=htonl(app_list.client[up].addr);
+                sendto(sockfd, buffer, sizeof(buffer)-1, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in));
+                up++;
+            }
+        }
+    }
+    pthread_exit(NULL);
+}
+#endif
+
+static int notify_app_thread_init(void)
+{
+    int res;
+    pthread_t a_thread;
+    
+    res = pthread_create(&a_thread, NULL, notify_app_thread, NULL);
+    if (res != 0)
+    {
+        perror("create notify app thread failed");
+        return -1;
+    }   
+    return 0;
 }
 static void fixup_prefix(char *str)
 {
@@ -571,6 +681,8 @@ int main(int argc, char **argv)
     shmem_init();
     signal(SIGALRM, signal_alarm_fn);
     signal(SIGUSR1, signal_usr1_fn);
+    //create notify app thread
+    notify_app_thread_init();
     uh_update_shop_json();
     
 	return run_server();
