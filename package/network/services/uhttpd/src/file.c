@@ -1048,6 +1048,28 @@ static void uh_output_200_OK(struct client *cl)
     ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
     uh_request_done(cl);
 }
+static void uh_output_ok_info(struct client *cl, bool isCAcs, char *content)
+{
+    int len=0;
+    if(content==NULL)
+        return;
+    len=strlen(content);
+    if(len<=0)
+        return;
+    cl->request.disable_chunked = true;
+    cl->request.connection_close = true;
+    uh_http_header(cl, 200, "OK");
+    ustream_printf(cl->us, "Content-Length: %d\r\n", len);
+/*    ustream_printf(cl->us, "<META HTTP-EQUIV=\"pragma\" CONTENT=\"no-cache\">\r\n"); 
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"Cache-Control\" CONTENT=\"no-store, must-revalidate\">\r\n"); 
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"Wed, 26 Feb 1997 08:21:57 GMT\">\r\n");
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"0\">\r\n"); */
+    if(isCAcs)
+        ustream_printf(cl->us, "Access-Control-Allow-Origin: *\r\n");
+    ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
+    ustream_printf(cl->us, "%s", content);
+    uh_request_done(cl);
+}
 #ifdef ONLY_CHECK_SHOP_SID
 bool uh_update_shop_json(void)
 {
@@ -1449,27 +1471,27 @@ static bool uh_check_app_url(char *url)
     }
     return false;
 }
-static bool uh_append_order(char *url)
+static int uh_append_order(char *url)
 {
     char *ptrStart=NULL, *pSid=NULL;
     int len=0;
     orderList *item=NULL, *ptr=NULL;
 
     if(url==NULL)
-        return false;
+        return -1;
     if((ptrStart=strchr(url, '?'))==NULL)
-        return false;
+        return -1;
     ptrStart++;
     if((pSid=strstr(ptrStart, "sid="))==NULL)
-        return false;
+        return -1;
     pSid+=4;
     if(strncmp(pSid, shop_sid, SHOP_SID_LEN)!=0)
-        return false;
+        return 1;
     len=strlen(ptrStart);
         
     item=(orderList *)malloc(sizeof(orderList)+len+1);
     if(item==NULL)
-        return false;
+        return -1;
     item->next=NULL;
     strcpy(item->order, ptrStart);
     item->order[len]=0;
@@ -1482,7 +1504,7 @@ static bool uh_append_order(char *url)
             ptr=ptr->next;
         ptr->next=item;
     }
-    return true;
+    return 0;
 }
 /*
 *return 1, found, mac address is save to mac parameter
@@ -1608,7 +1630,7 @@ void uh_handle_request(struct client *cl)
 	char ip_buf[32];
 	char *is_success_req=NULL;
 	client_status cli_status=ADD_ALLOW_RULE;
-	int isChange=0, found=0;
+	int isChange=0, found=0, ORet=-1;
 
 	url = uh_handle_alias(url);
 
@@ -1710,12 +1732,15 @@ void uh_handle_request(struct client *cl)
     }
     else if (strstr(url, ORDER_COMMIT_KEYWORD))
     {
-        if(uh_append_order(url))
+        ORet=uh_append_order(url);
+        if(ORet==0)
         {
-            uh_output_200_OK(cl);
+            uh_output_ok_info(cl, true, "OK");
 //only for test
             pthread_cond_signal(&notiy_cond);
         }
+        else if(ORet==1)
+            uh_output_ok_info(cl, true, "EVer");
         else
             uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
         return;
