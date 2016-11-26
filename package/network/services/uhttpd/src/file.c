@@ -1041,10 +1041,10 @@ static void uh_output_200_OK(struct client *cl)
     cl->request.connection_close = true;
     uh_http_header(cl, 200, "OK");
     ustream_printf(cl->us, "Content-Length: 0\r\n");
-    ustream_printf(cl->us, "<META HTTP-EQUIV=\"pragma\" CONTENT=\"no-cache\">\r\n"); 
+/*    ustream_printf(cl->us, "<META HTTP-EQUIV=\"pragma\" CONTENT=\"no-cache\">\r\n"); 
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"Cache-Control\" CONTENT=\"no-store, must-revalidate\">\r\n"); 
     ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"Wed, 26 Feb 1997 08:21:57 GMT\">\r\n");
-    ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"0\">\r\n");
+    ustream_printf(cl->us, "<META HTTP-EQUIV=\"expires\" CONTENT=\"0\">\r\n"); */
     ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
     uh_request_done(cl);
 }
