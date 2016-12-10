@@ -37,6 +37,7 @@
 //#include <syslog.h>
 #include <json-c/json.h>
 #include <pthread.h>
+#include <net/if_arp.h>
 
 #include <sys/stat.h> 
 //#include <unistd.h> 
@@ -51,12 +52,18 @@
 #define UHTTPD_WLANX_TEMP_FILE "/tmp/uhttpd_wlanx_temp_file"
 #define ENCRYPT_RESERVE_WLAN_INTF "wlan0-1"
 #define APP_REG_KEYWORD "reg_backstage"
+#define APP_GET_ORDER_LIST "get_OL16b52Ce9"
+#define APP_GET_ORDER_LIST_CONFIRM "get_OLCFVsKaMeP"
 #define APP_UPLOAD_KEYWORD "shop_ulmg_nhrM5BhJ"
 #define APP_UPLOAD_NOTE_KEYWORD "shop_nt_77E2cA8h"
+#define RESPONSE_APP_ORDER_BUF_LEN (2048-16)  //16 is for strlen("-2147483648")
 #define SHOP_SID_LEN 14
+#define GET_ORDER_LIST_MAX_NUM 32
+#define ORDER_LIST_MAX_PENDING_TIME 300 //5 min
 #define ORDER_COMMIT_KEYWORD "onlineorderlist"
 #define SHOP_RES_JSON_FILE "/www/connect/res/webdata/webDatas.json"
 #define ONLY_CHECK_SHOP_SID
+#define BRIDGE_INTERFACE_NAME "br-lan"
 
 static LIST_HEAD(index_files);
 static LIST_HEAD(dispatch_handlers);
@@ -70,6 +77,8 @@ static char hwaddr[20]={0,0};
 static char first_ssid[100]={0,0};
 //static int read_shopinfo_times=0;
 static char shop_sid[SHOP_SID_LEN+1]={0,0};
+static int order_lable=1;
+static char order_buf[RESPONSE_APP_ORDER_BUF_LEN+16]={0};
 
 struct deferred_request {
 	struct list_head list;
@@ -92,7 +101,14 @@ typedef struct shop_menus {
 shopMenus *pMenu=NULL;
 #endif
 
+typedef enum order_status {
+	ORDER_NEW=0,
+	ORDER_PENDING
+}OrderStatus;
 typedef struct order_list {
+    OrderStatus status;
+    int lable;
+    time_t time_out;  //fro ORDER_PENDING status
     struct order_list *next;
     char order[0];
 }orderList;
@@ -1052,10 +1068,10 @@ static void uh_output_ok_info(struct client *cl, bool isCAcs, char *content)
 {
     int len=0;
     if(content==NULL)
-        return;
-    len=strlen(content);
-    if(len<=0)
-        return;
+        len=0;
+    else
+        len=strlen(content);
+
     cl->request.disable_chunked = true;
     cl->request.connection_close = true;
     uh_http_header(cl, 200, "OK");
@@ -1067,7 +1083,27 @@ static void uh_output_ok_info(struct client *cl, bool isCAcs, char *content)
     if(isCAcs)
         ustream_printf(cl->us, "Access-Control-Allow-Origin: *\r\n");
     ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
-    ustream_printf(cl->us, "%s", content);
+    if(len>0)
+        ustream_printf(cl->us, "%s", content);
+    uh_request_done(cl);
+}
+static void uh_output_not_found_info(struct client *cl, bool isCAcs, char *content)
+{
+    int len=0;
+    if(content==NULL)
+        len=0;
+    else
+        len=strlen(content);
+
+    cl->request.disable_chunked = true;
+    cl->request.connection_close = true;
+    uh_http_header(cl, 404, "Not Found");
+    ustream_printf(cl->us, "Content-Length: %d\r\n", len);
+    if(isCAcs)
+        ustream_printf(cl->us, "Access-Control-Allow-Origin: *\r\n");
+    ustream_printf(cl->us, "Content-Type: text/html; charset=utf-8\r\n\r\n");
+    if(len>0)
+        ustream_printf(cl->us, "%s", content);
     uh_request_done(cl);
 }
 #ifdef ONLY_CHECK_SHOP_SID
@@ -1471,6 +1507,9 @@ static bool uh_check_app_url(char *url)
     }
     return false;
 }
+/*
+* return -1 error,  0 success,  1 shop sid don't match
+*/
 static int uh_append_order(char *url)
 {
     char *ptrStart=NULL, *pSid=NULL;
@@ -1487,12 +1526,16 @@ static int uh_append_order(char *url)
     pSid+=4;
     if(strncmp(pSid, shop_sid, SHOP_SID_LEN)!=0)
         return 1;
+
     len=strlen(ptrStart);
         
     item=(orderList *)malloc(sizeof(orderList)+len+1);
     if(item==NULL)
         return -1;
     item->next=NULL;
+    item->status=ORDER_NEW;
+    item->time_out=0;
+    item->lable=0;
     strcpy(item->order, ptrStart);
     item->order[len]=0;
     if(pOrder==NULL)
@@ -1506,6 +1549,95 @@ static int uh_append_order(char *url)
     }
     return 0;
 }
+/*
+* return -1 error,  0 success and list not null,  1 order list is null
+*/
+static int uh_get_order(int lable, char *arr[])
+{
+    struct timespec time = {0, 0};
+    int index=0;
+    orderList *item=NULL;
+    int len=0, all_len=0;
+
+    if(arr==NULL)
+        return -1;
+    if(lable==0)
+        return -1;
+    if(pOrder==NULL)//1 order list is null
+        return 1;
+    clock_gettime(CLOCK_MONOTONIC, &time);
+    item=pOrder;
+    while(item && (index<(GET_ORDER_LIST_MAX_NUM-1)))
+    {
+        if(item->status==ORDER_NEW)
+        {
+            len=strlen(item->order);
+            all_len=all_len+len+1; //1 is for ','
+            if(all_len>=(RESPONSE_APP_ORDER_BUF_LEN-1))
+                break;
+            item->status=ORDER_PENDING;
+            item->lable=lable;
+            item->time_out=time.tv_sec+ORDER_LIST_MAX_PENDING_TIME;
+            arr[index]=item->order;
+            index++;
+        }else if((item->status==ORDER_PENDING)&&(time.tv_sec >= item->time_out))
+        {
+            len=strlen(item->order);
+            all_len=all_len+len+1; //1 is for ','
+            if(all_len>=(RESPONSE_APP_ORDER_BUF_LEN-1))
+                break;
+            item->lable=lable;
+            item->time_out=time.tv_sec+ORDER_LIST_MAX_PENDING_TIME;
+            arr[index]=item->order;
+            index++;
+        }
+        item=item->next;
+    }
+    arr[index]=0;
+    return 0;
+}
+
+/*
+* return -1 error,  0 success and list not null,  1 order list is null
+*/
+static int uh_release_order(int lable)
+{
+    orderList *item=NULL, *prev=NULL;
+    bool found=false;
+
+//    if(lable==0)
+//        return -1;
+    if(pOrder==NULL)    //1 order list is null
+        return 1;
+
+    item=pOrder;
+    while(item)
+    {
+        if((item->status==ORDER_PENDING)&&(item->lable==lable))
+        {
+            found=true;
+            item=item->next;
+            if(prev==NULL)
+            {
+                free(pOrder);
+                pOrder=item;
+            }else
+            {
+                free(prev->next);
+                prev->next=item;
+            }
+        }else
+        {
+            prev=item;
+            item=item->next;
+        }
+    }
+    if(found)
+        return 0;
+    else
+        return 1;
+}
+#if 0
 /*
 *return 1, found, mac address is save to mac parameter
 *return 0, not found,
@@ -1532,6 +1664,42 @@ static bool uh_get_client_mac(unsigned int addr_int, unsigned char *mac)
     sem_unlock();
     return found;
 }
+#else
+/*
+*return 1, found, mac address is save to mac parameter
+*return 0, not found,
+*/
+static bool uh_get_client_mac(unsigned int addr_int, unsigned char *mac)
+{  
+    struct arpreq req;  
+    struct sockaddr_in *sin;  
+    int ret = 0;  
+    int sock_fd = 0;  
+
+    if((addr_int==0)||(mac==NULL))
+        return false;
+        
+    memset(&req, 0, sizeof(struct arpreq));  
+    sin = (struct sockaddr_in *)&(req.arp_pa);  
+    sin->sin_family = AF_INET;  
+    sin->sin_addr.s_addr = htonl(addr_int);
+    strncpy(req.arp_dev, BRIDGE_INTERFACE_NAME, IFNAMSIZ-1);  
+  
+    sock_fd = socket(AF_INET, SOCK_DGRAM, 0);  
+    if(sock_fd < 0)
+        return false;
+  
+    ret = ioctl(sock_fd, SIOCGARP, &req);  
+    if(ret < 0)  
+    {
+        close(sock_fd);  
+        return false;  
+    }
+    memcpy(mac, (unsigned char *)req.arp_ha.sa_data, 6);
+    close(sock_fd);
+    return true;
+} 
+#endif
 
 static bool is_wlanx_client(char *wlan_name, unsigned char *mac)
 {
@@ -1617,7 +1785,7 @@ static bool update_app_info(unsigned int addr_int)
         pthread_mutex_unlock(&notiy_mutex);
         return true;
     }
-    pthread_mutex_unlock(&notiy_mutex);
+//    pthread_mutex_unlock(&notiy_mutex);
 }
 
 void uh_handle_request(struct client *cl)
@@ -1631,6 +1799,12 @@ void uh_handle_request(struct client *cl)
 	char *is_success_req=NULL;
 	client_status cli_status=ADD_ALLOW_RULE;
 	int isChange=0, found=0, ORet=-1;
+	char *order_arr[GET_ORDER_LIST_MAX_NUM];
+	char *order_ptr=NULL;
+	int kk=0, order_len=0;
+	unsigned int app_addr;
+	int lable=0;
+	char *pStart=NULL;
 
 	url = uh_handle_alias(url);
 
@@ -1695,9 +1869,11 @@ void uh_handle_request(struct client *cl)
         }
         uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
         return;
-    }else if (strstr(url, APP_REG_KEYWORD))
+    }
+/*    
+    else if (strstr(url, APP_REG_KEYWORD))
     {
-        unsigned int app_addr=ntohl(cl->peer_addr.in.s_addr);
+        app_addr=ntohl(cl->peer_addr.in.s_addr);
         if(uh_check_app_url(url)&&is_from_encrypt_ap(app_addr))
         {
             update_app_info(app_addr);
@@ -1709,9 +1885,82 @@ void uh_handle_request(struct client *cl)
         }
         return;
     }
+*/
+/*app use magic key, menu use sid*/
+    else if (strstr(url, APP_GET_ORDER_LIST))
+    {
+        app_addr=ntohl(cl->peer_addr.in.s_addr);
+        if(uh_check_app_url(url)&&is_from_encrypt_ap(app_addr))
+        {
+            update_app_info(app_addr);
+            ORet=uh_get_order(order_lable,order_arr);
+            if(ORet==1)
+            {
+                uh_output_ok_info(cl, true, NULL);
+                //order_lable++;
+            }
+            else if(ORet==0)
+            {
+                order_buf[0]=0;
+                order_ptr=order_buf;
+                kk=0;
+                while((order_arr[kk]!=NULL)&&(kk<GET_ORDER_LIST_MAX_NUM))
+                {
+                    if(kk==0)
+                    {
+                        order_len=sprintf(order_ptr, "%d,%s", order_lable, order_arr[kk]);
+                        if(order_len>0)
+                            order_ptr+=order_len;
+                    }
+                    else
+                    {
+                        order_len=sprintf(order_ptr, ",%s", order_arr[kk]);
+                        if(order_len>0)
+                            order_ptr+=order_len;
+                    }
+                    kk++;
+                }
+                uh_output_ok_info(cl, true, order_buf);
+                if(kk!=0)
+                    order_lable++;
+            }else
+            {
+                uh_output_not_found_info(cl, true, "URL was not found on this server.");
+                //uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            }
+        }
+        else
+        {
+            //uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            uh_output_not_found_info(cl, true, "URL was not found on this server.");
+        }
+        return;
+    }else if (strstr(url, APP_GET_ORDER_LIST_CONFIRM))
+    {
+        app_addr=ntohl(cl->peer_addr.in.s_addr);
+        bool isSuccess=false;
+        if(uh_check_app_url(url)&&is_from_encrypt_ap(app_addr))
+        {       
+            update_app_info(app_addr);
+            if(((pStart=strstr(url, "lab="))!=NULL)&&((lable=atoi(pStart+4))!=0))
+            {
+                if(uh_release_order(lable)==0)
+                {
+                     uh_output_ok_info(cl, true, NULL);
+                     isSuccess=true;
+                }
+            }
+        }
+        if(!isSuccess)
+        {
+            //uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            uh_output_not_found_info(cl, true, "URL was not found on this server.");
+        }
+        return;
+    }
     else if (strstr(url, APP_UPLOAD_KEYWORD))
     {
-        unsigned int app_addr=ntohl(cl->peer_addr.in.s_addr);
+        app_addr=ntohl(cl->peer_addr.in.s_addr);
         if(uh_check_app_url(url)&&is_from_encrypt_ap(app_addr))
         {
             update_app_info(app_addr);
@@ -1725,9 +1974,9 @@ void uh_handle_request(struct client *cl)
     else if (strstr(url, APP_UPLOAD_NOTE_KEYWORD))
     {
         if(uh_update_shop_json())
-            uh_output_200_OK(cl);
+            uh_output_ok_info(cl, true, NULL);
         else
-            uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            uh_output_not_found_info(cl, true, "URL was not found on this server.");
         return;
     }
     else if (strstr(url, ORDER_COMMIT_KEYWORD))
@@ -1742,7 +1991,8 @@ void uh_handle_request(struct client *cl)
         else if(ORet==1)
             uh_output_ok_info(cl, true, "EVer");
         else
-            uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            //uh_client_error(cl, 404, "Not Found", "The requested URL %s was not found on this server.", url);
+            uh_output_not_found_info(cl, true, "URL was not found on this server.");
         return;
     }
     if(strstr(url, IOS_JS_KEY_FILENAME) && req->isIOS)
