@@ -1892,6 +1892,11 @@ void uh_handle_request(struct client *cl)
         app_addr=ntohl(cl->peer_addr.in.s_addr);
         if(uh_check_app_url(url)&&is_from_encrypt_ap(app_addr))
         {
+            if(strstr(url, shop_sid)==NULL)
+            {
+                uh_output_ok_info(cl, true, "EVer");
+                return;
+            }
             update_app_info(app_addr);
             ORet=uh_get_order(order_lable,order_arr);
             if(ORet==1)
