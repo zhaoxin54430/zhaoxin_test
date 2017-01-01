@@ -1638,6 +1638,23 @@ static int uh_release_order(int lable)
         return 1;
 }
 #if 0
+static void uh_release_all_order(void)
+{
+    orderList *item=NULL
+    
+    if(pOrder==NULL)    //1 order list is null
+        return;
+
+    while(pOrder)
+    {
+        item=pOrder;
+        pOrder=pOrder->next;
+        free(item);
+    }
+    pOrder=NULL;
+}
+#endif
+#if 0
 /*
 *return 1, found, mac address is save to mac parameter
 *return 0, not found,

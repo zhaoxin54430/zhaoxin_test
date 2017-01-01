@@ -290,7 +290,7 @@ static void *notify_app_thread(void *arg)
     appInfo app_list;
     struct sockaddr_in addr;
     int sockfd; 
-    char buffer[8];
+    char buffer[8]="o_n_app";
     uint16_t rand_num;
     int up, down;
 
