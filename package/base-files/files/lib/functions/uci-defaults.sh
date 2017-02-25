@@ -229,6 +229,7 @@ set network.wan.proto='dhcp'
 set network.wan6='interface'
 set network.wan6.ifname='$ifname'
 set network.wan6.proto='dhcpv6'
+set network.wan6.enabled='0'
 EOF
 }
 
