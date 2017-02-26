@@ -106,12 +106,12 @@ static const struct blobmsg_policy tp_attrs[TP_ATTR_MAX] = {
 	[TP_ATTR_INSTANCE] = { .name = "instance", .type = BLOBMSG_TYPE_INT32 },
 };
 
-static const thermalpDevice handlers_ki[]={
+static const thermalpHandle handlers_eth[]={
     { .name = "gp58", .open = NULL, .write = NULL, .close = NULL},
     { .name = NULL, .open = NULL, .write = NULL, .close = NULL},
 };
-static const thermalpDevice handlers_ca[]={
-    { .name = "gp58", .open = NULL, .write = gp58_ca_write, .close = NULL},
+static const thermalpHandle handlers_usb[]={
+    { .name = "gp58", .open = NULL, .write = gp58_usb_write, .close = NULL},
     { .name = NULL, .open = NULL, .write = NULL, .close = NULL},
 }; 
 
@@ -258,24 +258,24 @@ static int config_init(const char *config, thermalpConf *tp_conf)
         else
             thermalp_error("config_init port is null, use 9100");
 
-        if(type==TP_CASHIER)
+        if(intf_type==TP_USB)
         {
-            for(k=0;handlers_ca[k].name;k++)
+            for(k=0;handlers_usb[k].name;k++)
             {
-                if(strcmp(handlers_ca[k].name, name)==0)
+                if(strcmp(handlers_usb[k].name, name)==0)
                 {
-                    tp_conf->dev[index].handle=&(handlers_ca[k]);
+                    tp_conf->dev[index].handle=&(handlers_usb[k]);
                     break;
                 }
             }
         }
-        else if(type==TP_KITCHEN)
+        else if(intf_type==TP_ETH)
         {
-            for(k=0;handlers_ki[k].name;k++)
+            for(k=0;handlers_eth[k].name;k++)
             {
-                if(strcmp(handlers_ki[k].name, name)==0)
+                if(strcmp(handlers_eth[k].name, name)==0)
                 {
-                    tp_conf->dev[index].handle=&(handlers_ki[k]);
+                    tp_conf->dev[index].handle=&(handlers_eth[k]);
                     break;
                 }
             }
@@ -764,7 +764,7 @@ static void open_all(void)
         {
             if((tp_conf.dev[i].handle->open==NULL)||(tp_conf.dev[i].handle->open(&tp_conf.dev[i])!=TP_RET_SUCCESS))
             {
-                thermalp_error("call dev:%s open function failed", tp_conf.dev[i].name);
+                thermalp_error("call open function failed for dev:%s intf_type:%d", tp_conf.dev[i].name, tp_conf.dev[i].intf_type);
             }
         }
     }
@@ -778,7 +778,7 @@ static void close_all(void)
         {
             if((tp_conf.dev[i].handle->close==NULL)||(tp_conf.dev[i].handle->close(&tp_conf.dev[i])!=TP_RET_SUCCESS))
             {
-                thermalp_error("call dev:%s close function failed", tp_conf.dev[i].name);
+                thermalp_error("call close function failed for dev:%s intf_type:%d", tp_conf.dev[i].name, tp_conf.dev[i].intf_type);
             }
         }
     }
@@ -787,7 +787,7 @@ static void close_all(void)
 /* blen is the size of buf; slen is the length of src.  The input-string need
 ** not be, and the output string will not be, null-terminated.  Returns the
 ** length of the decoded string, -1 on buffer overflow, -2 on malformed string. */
-int uh_urldecode(char *buf, int blen, const char *src, int slen)
+int urldecode(char *buf, int blen, const char *src, int slen)
 {
 	int i;
 	int len = 0;
@@ -887,7 +887,7 @@ int main(int argc, char **argv)
                 {
                     if((tp_conf.dev[i].handle->write==NULL)||(tp_conf.dev[i].handle->write(&tp_conf.dev[i], pData)!=TP_RET_SUCCESS))
                     {
-                        thermalp_error("call dev:%s wirte function failed", tp_conf.dev[i].name);
+                        thermalp_error("call write function failed for dev:%s intf_type:%d", tp_conf.dev[i].name, tp_conf.dev[i].intf_type);
                     }
                 }
             }

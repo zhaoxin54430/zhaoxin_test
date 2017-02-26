@@ -48,13 +48,16 @@ typedef struct pay_data{
     int list_num;
 }payData;
 
-typedef struct thermalp_device{
+typedef struct thermalp_handle thermalpHandle;
+typedef struct thermalp_dev thermalpDev;
+
+struct thermalp_handle{
     char *name;
     /*for kitchen*/
-    tpRet (*open)(void *ptr);
-    tpRet (*write)(void *ptr, payData *pData);
-    tpRet (*close)(void *ptr);
-}thermalpDevice;
+    tpRet (*open)(thermalpDev *tp);
+    tpRet (*write)(thermalpDev *tp, payData *pData);
+    tpRet (*close)(thermalpDev *tp);
+};
 
 typedef enum {
 	TP_USB,
@@ -64,20 +67,21 @@ typedef enum {
 	TP_KITCHEN,
 	TP_CASHIER
 }tp_type;
-typedef struct thermalp_dev{
+struct thermalp_dev{
     char name[TP_MODEL_NAME_MAX_LEN];
     struct in_addr ip;
     uint16_t port;
     tp_type type;
     tp_intf_type intf_type;
     int instance;
-    thermalpDevice *handle;
-}thermalpDev;
+    thermalpHandle *handle;
+    FILE *fp;
+};
 
 typedef struct thermalp_conf{
     int num;
     thermalpDev *dev;
 }thermalpConf;
 
-int uh_urldecode(char *buf, int blen, const char *src, int slen);
+int urldecode(char *buf, int blen, const char *src, int slen);
 #endif
