@@ -428,12 +428,14 @@ CURLcode curl_post_init(char *url)
             return res;
         }
         /*after perform, close the socket*/
+#if 0        
         res=curl_easy_setopt(curl_handle, CURLOPT_FORBID_REUSE, 1L);
         if(res != CURLE_OK)
         {
             clatdm_error("CURLOPT_FORBID_REUSE error");
             return res;
         }
+#endif        
     }
     return res;
 }
