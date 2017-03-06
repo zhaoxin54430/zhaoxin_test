@@ -795,7 +795,6 @@ int main(int argc, char **argv)
     if(access(SHARE_MEM_FLAG, F_OK)==0)
         attachExisting=true;
 
-    signal(SIGPIPE, SIG_IGN);
     openlog("clatdm", LOG_NDELAY , LOG_USER);
 
     shm_ptr=NULL;
@@ -885,6 +884,7 @@ int main(int argc, char **argv)
         goto quit_mem;
     }
     signal(SIGUSR1, sigHandler_user);
+    signal(SIGPIPE, SIG_IGN);
 #ifdef DOMAIN_WHITE_LIST
     pid_file=fopen(CLATDM_PID_FILE,"w");
     if(pid_file==NULL)
